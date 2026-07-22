@@ -5,6 +5,11 @@ We can always drop the dev db, recreate it from scratch.
 Use ASD-STE100 Simplified Technical English (STE for short) for documentation
 and plans.
 
+## Rules
+
+- Timestamps: use `TIMESTAMPTZ(6)` for all timestamp columns (UTC with microsecond precision; same idea as Ecto `utc_datetime_usec`). Do not use second-precision timestamps. In Go, store as `time.Time` in UTC and keep microsecond resolution.
+- Naming: table and column names must be explicit. Never abbreviate (for example `organizations`, not `orgs`; `organization_id`, not `org_id`). Prefer full words in indexes and constraints too.
+
 ## Layout
 
 | Path | Role |
@@ -12,7 +17,6 @@ and plans.
 | `farplane-backend/` | Go control plane (Gin) |
 | `farplane-web/` | TanStack Router SPA (Rsbuild) |
 | `Makefile` | Common tasks (DB, migrate, test, run) |
-| `plan.md` | Product and toolchain plan |
 | `mise.toml` | Pinned Go and Bun tools |
 
 ## Tools
@@ -67,8 +71,6 @@ Stack notes:
 
 - Driver: [pgx/v5](https://github.com/jackc/pgx) with `pgxpool`
 - Migrations: [pressly/goose](https://github.com/pressly/goose) (SQL files under `farplane-backend/internal/db/migrations`)
-- Timestamps: use `TIMESTAMPTZ(6)` for all timestamp columns (UTC with microsecond precision; same idea as Ecto `utc_datetime_usec`). Do not use second-precision timestamps. In Go, store as `time.Time` in UTC and keep microsecond resolution.
-- Naming: table and column names must be explicit. Never abbreviate (for example `organizations`, not `orgs`; `organization_id`, not `org_id`). Prefer full words in indexes and constraints too.
 
 ### 1. Control plane (`farplane-backend`)
 
