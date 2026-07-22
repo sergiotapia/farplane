@@ -4,12 +4,14 @@
     "target": "ES2022",
     "jsx": "react-jsx",
     "module": "ESNext",
+    "baseUrl": ".",
     "paths": {
       "#/*": ["./src/*"],
       "@/*": ["./src/*"]
     },
+    "ignoreDeprecations": "6.0",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "types": [],
+    "types": ["node"],
 
     /* Bundler mode */
     "moduleResolution": "bundler",
