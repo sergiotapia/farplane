@@ -13,7 +13,9 @@ import (
 	"github.com/farplane/farplane/farplane-backend/internal/auth"
 	"github.com/farplane/farplane/farplane-backend/internal/config"
 	"github.com/farplane/farplane/farplane-backend/internal/githubapp"
+	"github.com/farplane/farplane/farplane-backend/internal/lanehub"
 	"github.com/farplane/farplane/farplane-backend/internal/models"
+	"github.com/farplane/farplane/farplane-backend/internal/runtime"
 	"github.com/farplane/farplane/farplane-backend/internal/store"
 )
 
@@ -23,9 +25,11 @@ const (
 )
 
 type api struct {
-	cfg    config.Config
-	store  *store.Store
-	github GitHubApp
+	cfg     config.Config
+	store   *store.Store
+	github  GitHubApp
+	runtime runtime.Runtime
+	hub     *lanehub.Hub
 
 	githubMu     sync.RWMutex
 	githubForced bool // true when WithGitHubApp injected a test client
@@ -34,8 +38,8 @@ type api struct {
 	manifestConvert func(ctx context.Context, code string) (githubapp.ManifestApp, error)
 }
 
-func newAPI(cfg config.Config, st *store.Store) *api {
-	a := &api{cfg: cfg, store: st}
+func newAPI(cfg config.Config, st *store.Store, rt runtime.Runtime, hub *lanehub.Hub) *api {
+	a := &api{cfg: cfg, store: st, runtime: rt, hub: hub}
 	a.github = a.loadGitHubAppLocked()
 	return a
 }
@@ -213,6 +217,10 @@ func writeStoreError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, store.ErrAlreadySetup):
 		c.JSON(http.StatusConflict, gin.H{"error": "setup already completed"})
+	case errors.Is(err, store.ErrConflict):
+		c.JSON(http.StatusConflict, gin.H{"error": "conflict"})
+	case errors.Is(err, store.ErrForbidden):
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 	case errors.Is(err, store.ErrNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 	default:

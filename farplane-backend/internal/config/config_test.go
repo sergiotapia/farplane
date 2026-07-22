@@ -170,8 +170,8 @@ func TestLoad(t *testing.T) {
 			if cfg.ReadTimeout != 15*time.Second {
 				t.Fatalf("ReadTimeout = %v, want 15s", cfg.ReadTimeout)
 			}
-			if cfg.WriteTimeout != 30*time.Second {
-				t.Fatalf("WriteTimeout = %v, want 30s", cfg.WriteTimeout)
+			if cfg.WriteTimeout != 0 {
+				t.Fatalf("WriteTimeout = %v, want 0 (disabled for WebSockets)", cfg.WriteTimeout)
 			}
 			if cfg.IdleTimeout != 60*time.Second {
 				t.Fatalf("IdleTimeout = %v, want 60s", cfg.IdleTimeout)

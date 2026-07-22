@@ -15,7 +15,8 @@ const (
 	defaultAddr              = ":8080"
 	defaultReadHeaderTimeout = 5 * time.Second
 	defaultReadTimeout       = 15 * time.Second
-	defaultWriteTimeout      = 30 * time.Second
+	// Zero disables write deadlines so Lane WebSockets are not cut off mid-stream.
+	defaultWriteTimeout      = 0
 	defaultIdleTimeout       = 60 * time.Second
 	defaultShutdownTimeout   = 10 * time.Second
 	defaultAppBaseURL        = "http://localhost:3000"
@@ -62,6 +63,9 @@ type Config struct {
 	GitHubAppClientID      string
 	GitHubAppClientSecret  string
 	GitHubAppCallbackURL   string
+
+	// Runtime selects the Lane computer backend: "docker" (default). Sprites later.
+	Runtime string
 }
 
 // GoogleOAuthConfigured reports whether Google sign-in can run.
@@ -106,6 +110,7 @@ func Load() (Config, error) {
 		GoogleRedirectURL:    defaultGoogleRedirectURL,
 		GitHubAppCallbackURL: defaultGitHubCallbackURL,
 		SessionTTL:           30 * 24 * time.Hour,
+		Runtime:              "docker",
 	}
 
 	if databaseURL := os.Getenv("DATABASE_URL"); databaseURL != "" {
@@ -167,6 +172,10 @@ func Load() (Config, error) {
 	} else {
 		// Secure cookies by default outside local/dev HTTP.
 		cfg.SessionCookieSecure = !allowsDefaultDatabaseURL(cfg.AppEnv)
+	}
+
+	if v := strings.TrimSpace(os.Getenv("RUNTIME")); v != "" {
+		cfg.Runtime = strings.ToLower(v)
 	}
 
 	if addr := os.Getenv("ADDR"); addr != "" {

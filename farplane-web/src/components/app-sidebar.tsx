@@ -1,9 +1,12 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useRouteContext, useRouterState } from '@tanstack/react-router'
 import {
+  ContainerIcon,
   FolderKanbanIcon,
+  GitBranchIcon,
   HomeIcon,
   InfoIcon,
+  KeyRoundIcon,
   LogOutIcon,
   SettingsIcon,
 } from 'lucide-react'
@@ -15,6 +18,7 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -24,11 +28,20 @@ import {
 } from '@/components/ui/sidebar'
 import { meQueryKey, postLogout } from '@/lib/api'
 
-const navItems = [
+const mainNavItems = [
   { to: '/', label: 'Home', icon: HomeIcon },
   { to: '/projects', label: 'Projects', icon: FolderKanbanIcon },
-  { to: '/settings/github', label: 'GitHub', icon: SettingsIcon },
   { to: '/about', label: 'About', icon: InfoIcon },
+] as const
+
+const settingsNavItems = [
+  { to: '/settings/github', label: 'GitHub', icon: GitBranchIcon },
+  {
+    to: '/settings/lane-templates',
+    label: 'Lane Templates',
+    icon: ContainerIcon,
+  },
+  { to: '/settings/secrets', label: 'Secrets', icon: KeyRoundIcon },
 ] as const
 
 export function AppSidebar() {
@@ -68,12 +81,39 @@ export function AppSidebar() {
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navItems.map((item) => {
+              {mainNavItems.map((item) => {
                 const Icon = item.icon
                 const isActive =
                   item.to === '/'
                     ? pathname === '/'
                     : pathname.startsWith(item.to)
+                return (
+                  <SidebarMenuItem key={item.to}>
+                    <SidebarMenuButton
+                      render={<Link to={item.to} />}
+                      isActive={isActive}
+                      tooltip={item.label}
+                    >
+                      <Icon />
+                      <span>{item.label}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>
+            <SettingsIcon className="size-3.5" />
+            <span>Settings</span>
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {settingsNavItems.map((item) => {
+                const Icon = item.icon
+                const isActive = pathname.startsWith(item.to)
                 return (
                   <SidebarMenuItem key={item.to}>
                     <SidebarMenuButton

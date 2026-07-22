@@ -15,7 +15,15 @@ import { Route as SetupRouteImport } from './routes/setup'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppAboutRouteImport } from './routes/_app/about'
 import { Route as AppProjectsRouteImport } from './routes/_app/projects'
+import { Route as LaneInvitesTokenRouteImport } from './routes/lane-invites/$token'
+import { Route as AppLanesLaneIdRouteImport } from './routes/_app/lanes/$laneId'
+import { Route as AppProjectsProjectIdRouteImport } from './routes/_app/projects/$projectId'
 import { Route as AppSettingsGithubRouteImport } from './routes/_app/settings/github'
+import { Route as AppSettingsLaneTemplatesRouteImport } from './routes/_app/settings/lane-templates'
+import { Route as AppSettingsSecretsRouteImport } from './routes/_app/settings/secrets'
+import { Route as AppLaneInvitesTokenAcceptRouteImport } from './routes/_app/lane-invites/$token/accept'
+import { Route as AppSettingsLaneTemplatesIndexRouteImport } from './routes/_app/settings/lane-templates/index'
+import { Route as AppSettingsLaneTemplatesTemplateIdRouteImport } from './routes/_app/settings/lane-templates/$templateId'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -46,27 +54,86 @@ const AppProjectsRoute = AppProjectsRouteImport.update({
   path: '/projects',
   getParentRoute: () => AppRoute,
 } as any)
+const LaneInvitesTokenRoute = LaneInvitesTokenRouteImport.update({
+  id: '/lane-invites/$token',
+  path: '/lane-invites/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppLanesLaneIdRoute = AppLanesLaneIdRouteImport.update({
+  id: '/lanes/$laneId',
+  path: '/lanes/$laneId',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppProjectsProjectIdRoute = AppProjectsProjectIdRouteImport.update({
+  id: '/$projectId',
+  path: '/$projectId',
+  getParentRoute: () => AppProjectsRoute,
+} as any)
 const AppSettingsGithubRoute = AppSettingsGithubRouteImport.update({
   id: '/settings/github',
   path: '/settings/github',
   getParentRoute: () => AppRoute,
 } as any)
+const AppSettingsLaneTemplatesRoute =
+  AppSettingsLaneTemplatesRouteImport.update({
+    id: '/settings/lane-templates',
+    path: '/settings/lane-templates',
+    getParentRoute: () => AppRoute,
+  } as any)
+const AppSettingsSecretsRoute = AppSettingsSecretsRouteImport.update({
+  id: '/settings/secrets',
+  path: '/settings/secrets',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppLaneInvitesTokenAcceptRoute =
+  AppLaneInvitesTokenAcceptRouteImport.update({
+    id: '/lane-invites/$token/accept',
+    path: '/lane-invites/$token/accept',
+    getParentRoute: () => AppRoute,
+  } as any)
+const AppSettingsLaneTemplatesIndexRoute =
+  AppSettingsLaneTemplatesIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AppSettingsLaneTemplatesRoute,
+  } as any)
+const AppSettingsLaneTemplatesTemplateIdRoute =
+  AppSettingsLaneTemplatesTemplateIdRouteImport.update({
+    id: '/$templateId',
+    path: '/$templateId',
+    getParentRoute: () => AppSettingsLaneTemplatesRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/login': typeof LoginRoute
   '/setup': typeof SetupRoute
   '/about': typeof AppAboutRoute
-  '/projects': typeof AppProjectsRoute
+  '/projects': typeof AppProjectsRouteWithChildren
+  '/lane-invites/$token': typeof LaneInvitesTokenRoute
+  '/lanes/$laneId': typeof AppLanesLaneIdRoute
+  '/projects/$projectId': typeof AppProjectsProjectIdRoute
   '/settings/github': typeof AppSettingsGithubRoute
+  '/settings/lane-templates': typeof AppSettingsLaneTemplatesRouteWithChildren
+  '/settings/secrets': typeof AppSettingsSecretsRoute
+  '/lane-invites/$token/accept': typeof AppLaneInvitesTokenAcceptRoute
+  '/settings/lane-templates/$templateId': typeof AppSettingsLaneTemplatesTemplateIdRoute
+  '/settings/lane-templates/': typeof AppSettingsLaneTemplatesIndexRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/setup': typeof SetupRoute
   '/about': typeof AppAboutRoute
-  '/projects': typeof AppProjectsRoute
+  '/projects': typeof AppProjectsRouteWithChildren
+  '/lane-invites/$token': typeof LaneInvitesTokenRoute
   '/': typeof AppIndexRoute
+  '/lanes/$laneId': typeof AppLanesLaneIdRoute
+  '/projects/$projectId': typeof AppProjectsProjectIdRoute
   '/settings/github': typeof AppSettingsGithubRoute
+  '/settings/secrets': typeof AppSettingsSecretsRoute
+  '/lane-invites/$token/accept': typeof AppLaneInvitesTokenAcceptRoute
+  '/settings/lane-templates/$templateId': typeof AppSettingsLaneTemplatesTemplateIdRoute
+  '/settings/lane-templates': typeof AppSettingsLaneTemplatesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -74,16 +141,50 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/setup': typeof SetupRoute
   '/_app/about': typeof AppAboutRoute
-  '/_app/projects': typeof AppProjectsRoute
+  '/_app/projects': typeof AppProjectsRouteWithChildren
+  '/lane-invites/$token': typeof LaneInvitesTokenRoute
   '/_app/': typeof AppIndexRoute
+  '/_app/lanes/$laneId': typeof AppLanesLaneIdRoute
+  '/_app/projects/$projectId': typeof AppProjectsProjectIdRoute
   '/_app/settings/github': typeof AppSettingsGithubRoute
+  '/_app/settings/lane-templates': typeof AppSettingsLaneTemplatesRouteWithChildren
+  '/_app/settings/secrets': typeof AppSettingsSecretsRoute
+  '/_app/lane-invites/$token/accept': typeof AppLaneInvitesTokenAcceptRoute
+  '/_app/settings/lane-templates/$templateId': typeof AppSettingsLaneTemplatesTemplateIdRoute
+  '/_app/settings/lane-templates/': typeof AppSettingsLaneTemplatesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/login' | '/setup' | '/about' | '/projects' | '/settings/github'
+    | '/'
+    | '/login'
+    | '/setup'
+    | '/about'
+    | '/projects'
+    | '/lane-invites/$token'
+    | '/lanes/$laneId'
+    | '/projects/$projectId'
+    | '/settings/github'
+    | '/settings/lane-templates'
+    | '/settings/secrets'
+    | '/lane-invites/$token/accept'
+    | '/settings/lane-templates/$templateId'
+    | '/settings/lane-templates/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/login' | '/setup' | '/about' | '/projects' | '/' | '/settings/github'
+  to:
+    | '/login'
+    | '/setup'
+    | '/about'
+    | '/projects'
+    | '/lane-invites/$token'
+    | '/'
+    | '/lanes/$laneId'
+    | '/projects/$projectId'
+    | '/settings/github'
+    | '/settings/secrets'
+    | '/lane-invites/$token/accept'
+    | '/settings/lane-templates/$templateId'
+    | '/settings/lane-templates'
   id:
     | '__root__'
     | '/_app'
@@ -91,14 +192,23 @@ export interface FileRouteTypes {
     | '/setup'
     | '/_app/about'
     | '/_app/projects'
+    | '/lane-invites/$token'
     | '/_app/'
+    | '/_app/lanes/$laneId'
+    | '/_app/projects/$projectId'
     | '/_app/settings/github'
+    | '/_app/settings/lane-templates'
+    | '/_app/settings/secrets'
+    | '/_app/lane-invites/$token/accept'
+    | '/_app/settings/lane-templates/$templateId'
+    | '/_app/settings/lane-templates/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
   LoginRoute: typeof LoginRoute
   SetupRoute: typeof SetupRoute
+  LaneInvitesTokenRoute: typeof LaneInvitesTokenRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -145,6 +255,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProjectsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/lane-invites/$token': {
+      id: '/lane-invites/$token'
+      path: '/lane-invites/$token'
+      fullPath: '/lane-invites/$token'
+      preLoaderRoute: typeof LaneInvitesTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_app/lanes/$laneId': {
+      id: '/_app/lanes/$laneId'
+      path: '/lanes/$laneId'
+      fullPath: '/lanes/$laneId'
+      preLoaderRoute: typeof AppLanesLaneIdRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/projects/$projectId': {
+      id: '/_app/projects/$projectId'
+      path: '/$projectId'
+      fullPath: '/projects/$projectId'
+      preLoaderRoute: typeof AppProjectsProjectIdRouteImport
+      parentRoute: typeof AppProjectsRoute
+    }
     '/_app/settings/github': {
       id: '/_app/settings/github'
       path: '/settings/github'
@@ -152,21 +283,93 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsGithubRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/settings/lane-templates': {
+      id: '/_app/settings/lane-templates'
+      path: '/settings/lane-templates'
+      fullPath: '/settings/lane-templates'
+      preLoaderRoute: typeof AppSettingsLaneTemplatesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/settings/secrets': {
+      id: '/_app/settings/secrets'
+      path: '/settings/secrets'
+      fullPath: '/settings/secrets'
+      preLoaderRoute: typeof AppSettingsSecretsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/lane-invites/$token/accept': {
+      id: '/_app/lane-invites/$token/accept'
+      path: '/lane-invites/$token/accept'
+      fullPath: '/lane-invites/$token/accept'
+      preLoaderRoute: typeof AppLaneInvitesTokenAcceptRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/settings/lane-templates/': {
+      id: '/_app/settings/lane-templates/'
+      path: '/'
+      fullPath: '/settings/lane-templates/'
+      preLoaderRoute: typeof AppSettingsLaneTemplatesIndexRouteImport
+      parentRoute: typeof AppSettingsLaneTemplatesRoute
+    }
+    '/_app/settings/lane-templates/$templateId': {
+      id: '/_app/settings/lane-templates/$templateId'
+      path: '/$templateId'
+      fullPath: '/settings/lane-templates/$templateId'
+      preLoaderRoute: typeof AppSettingsLaneTemplatesTemplateIdRouteImport
+      parentRoute: typeof AppSettingsLaneTemplatesRoute
+    }
   }
 }
 
+interface AppProjectsRouteChildren {
+  AppProjectsProjectIdRoute: typeof AppProjectsProjectIdRoute
+}
+
+const AppProjectsRouteChildren: AppProjectsRouteChildren = {
+  AppProjectsProjectIdRoute: AppProjectsProjectIdRoute,
+}
+
+const AppProjectsRouteWithChildren = AppProjectsRoute._addFileChildren(
+  AppProjectsRouteChildren,
+)
+
+interface AppSettingsLaneTemplatesRouteChildren {
+  AppSettingsLaneTemplatesTemplateIdRoute: typeof AppSettingsLaneTemplatesTemplateIdRoute
+  AppSettingsLaneTemplatesIndexRoute: typeof AppSettingsLaneTemplatesIndexRoute
+}
+
+const AppSettingsLaneTemplatesRouteChildren: AppSettingsLaneTemplatesRouteChildren =
+  {
+    AppSettingsLaneTemplatesTemplateIdRoute:
+      AppSettingsLaneTemplatesTemplateIdRoute,
+    AppSettingsLaneTemplatesIndexRoute: AppSettingsLaneTemplatesIndexRoute,
+  }
+
+const AppSettingsLaneTemplatesRouteWithChildren =
+  AppSettingsLaneTemplatesRoute._addFileChildren(
+    AppSettingsLaneTemplatesRouteChildren,
+  )
+
 interface AppRouteChildren {
   AppAboutRoute: typeof AppAboutRoute
-  AppProjectsRoute: typeof AppProjectsRoute
+  AppProjectsRoute: typeof AppProjectsRouteWithChildren
   AppIndexRoute: typeof AppIndexRoute
+  AppLanesLaneIdRoute: typeof AppLanesLaneIdRoute
   AppSettingsGithubRoute: typeof AppSettingsGithubRoute
+  AppSettingsLaneTemplatesRoute: typeof AppSettingsLaneTemplatesRouteWithChildren
+  AppSettingsSecretsRoute: typeof AppSettingsSecretsRoute
+  AppLaneInvitesTokenAcceptRoute: typeof AppLaneInvitesTokenAcceptRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppAboutRoute: AppAboutRoute,
-  AppProjectsRoute: AppProjectsRoute,
+  AppProjectsRoute: AppProjectsRouteWithChildren,
   AppIndexRoute: AppIndexRoute,
+  AppLanesLaneIdRoute: AppLanesLaneIdRoute,
   AppSettingsGithubRoute: AppSettingsGithubRoute,
+  AppSettingsLaneTemplatesRoute: AppSettingsLaneTemplatesRouteWithChildren,
+  AppSettingsSecretsRoute: AppSettingsSecretsRoute,
+  AppLaneInvitesTokenAcceptRoute: AppLaneInvitesTokenAcceptRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
@@ -175,6 +378,7 @@ const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
   LoginRoute: LoginRoute,
   SetupRoute: SetupRoute,
+  LaneInvitesTokenRoute: LaneInvitesTokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

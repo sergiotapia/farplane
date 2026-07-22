@@ -63,6 +63,7 @@ func (a *api) handleGoogleStart(c *gin.Context) {
 		intent = auth.OAuthIntentLogin
 	}
 	orgName := trimNonEmpty(c.Query("organization_name"))
+	inviteToken := trimNonEmpty(c.Query("invite_token"))
 
 	switch intent {
 	case auth.OAuthIntentSetup:
@@ -97,8 +98,22 @@ func (a *api) handleGoogleStart(c *gin.Context) {
 			c.Redirect(http.StatusFound, a.cfg.AppBaseURL+"/setup")
 			return
 		}
+	case auth.OAuthIntentLaneInvite:
+		if inviteToken == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invite_token is required"})
+			return
+		}
+		preview, err := a.store.GetLaneInvitePreview(c.Request.Context(), inviteToken)
+		if err != nil {
+			writeStoreError(c, err)
+			return
+		}
+		if !preview.Pending {
+			c.JSON(http.StatusConflict, gin.H{"error": "invite is not available"})
+			return
+		}
 	default:
-		c.JSON(http.StatusBadRequest, gin.H{"error": "intent must be setup or login"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "intent must be setup, login, or lane_invite"})
 		return
 	}
 
@@ -110,6 +125,7 @@ func (a *api) handleGoogleStart(c *gin.Context) {
 	state, err := auth.SignOAuthState(a.cfg.SessionSecret, auth.OAuthState{
 		Intent:           intent,
 		OrganizationName: orgName,
+		InviteToken:      inviteToken,
 		Nonce:            nonce,
 		ExpiresAtUnix:    time.Now().UTC().Add(oauthStateTTL).Unix(),
 	})
@@ -240,6 +256,43 @@ func (a *api) handleGoogleCallback(c *gin.Context) {
 		c.Redirect(http.StatusFound, a.cfg.AppBaseURL+"/")
 		return
 
+	case auth.OAuthIntentLaneInvite:
+		if state.InviteToken == "" {
+			a.redirectOAuthError(c, "invalid_invite")
+			return
+		}
+		token, err := auth.NewSessionToken()
+		if err != nil {
+			a.redirectLaneInviteOAuthError(c, state.InviteToken, "session_failed")
+			return
+		}
+		expiresAt := time.Now().UTC().Add(a.cfg.SessionTTL)
+		result, err := a.store.CompleteGoogleLaneInvite(ctx, store.LaneInviteGoogleInput{
+			Token:            state.InviteToken,
+			Email:            email,
+			DisplayName:      displayName,
+			AvatarURL:        avatarURL,
+			ProviderSubject:  info.Sub,
+			SessionToken:     token,
+			SessionExpiresAt: expiresAt,
+		})
+		if err != nil {
+			if errors.Is(err, store.ErrForbidden) {
+				a.redirectLaneInviteOAuthError(c, state.InviteToken, "invite_email_mismatch")
+				return
+			}
+			if errors.Is(err, store.ErrConflict) {
+				a.redirectLaneInviteOAuthError(c, state.InviteToken, "invite_unavailable")
+				return
+			}
+			a.redirectLaneInviteOAuthError(c, state.InviteToken, "invite_failed")
+			return
+		}
+		a.setSessionCookie(c, token, expiresAt)
+		a.broadcastInviteJoined(result.Invite.LaneID, result.User)
+		c.Redirect(http.StatusFound, a.cfg.AppBaseURL+"/lanes/"+result.Invite.LaneID)
+		return
+
 	default:
 		a.redirectOAuthError(c, "invalid_intent")
 	}
@@ -251,6 +304,18 @@ func (a *api) redirectOAuthError(c *gin.Context, code string) {
 		path = "/setup"
 	}
 	u, err := url.Parse(a.cfg.AppBaseURL + path)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": code})
+		return
+	}
+	q := u.Query()
+	q.Set("oauth_error", code)
+	u.RawQuery = q.Encode()
+	c.Redirect(http.StatusFound, u.String())
+}
+
+func (a *api) redirectLaneInviteOAuthError(c *gin.Context, inviteToken, code string) {
+	u, err := url.Parse(a.cfg.AppBaseURL + "/lane-invites/" + inviteToken)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": code})
 		return

@@ -10,6 +10,8 @@ import (
 
 	"github.com/farplane/farplane/farplane-backend/internal/config"
 	"github.com/farplane/farplane/farplane-backend/internal/githubapp"
+	"github.com/farplane/farplane/farplane-backend/internal/lanehub"
+	dockerruntime "github.com/farplane/farplane/farplane-backend/internal/runtime/docker"
 	"github.com/farplane/farplane/farplane-backend/internal/store"
 )
 
@@ -53,7 +55,9 @@ func New(pool *pgxpool.Pool, cfg config.Config, opts ...Option) *gin.Engine {
 	if pool != nil {
 		st = store.New(pool)
 	}
-	api := newAPI(cfg, st)
+	var rt = dockerruntime.New()
+	hub := lanehub.New()
+	api := newAPI(cfg, st, rt, hub)
 	for _, opt := range opts {
 		opt(api)
 	}
@@ -70,6 +74,9 @@ func New(pool *pgxpool.Pool, cfg config.Config, opts ...Option) *gin.Engine {
 		v1.GET("/auth/google/callback", api.handleGoogleCallback)
 		v1.POST("/auth/login", authLimiter.middleware(), api.handleLogin)
 		v1.POST("/auth/logout", api.handleLogout)
+
+		v1.GET("/lane-invites/:token", api.handleGetLaneInvite)
+		v1.POST("/lane-invites/:token/signup", authLimiter.middleware(), api.handleSignupLaneInvite)
 
 		v1.GET("/github/callback", api.handleGitHubCallback)
 		v1.GET("/github/app/manifest/callback", api.handleGitHubManifestCallback)
@@ -89,6 +96,35 @@ func New(pool *pgxpool.Pool, cfg config.Config, opts ...Option) *gin.Engine {
 			authed.GET("/projects", api.handleListProjects)
 			authed.POST("/projects", api.handleCreateProject)
 			authed.GET("/projects/:id", api.handleGetProject)
+
+			authed.GET("/lane-templates", api.handleListLaneTemplates)
+			authed.POST("/lane-templates", api.handleCreateLaneTemplate)
+			authed.GET("/lane-templates/:id", api.handleGetLaneTemplate)
+			authed.PATCH("/lane-templates/:id", api.handleUpdateLaneTemplate)
+			authed.POST("/lane-templates/:id/fork", api.handleForkLaneTemplate)
+			authed.POST("/lane-templates/:id/validate", api.handleValidateLaneTemplate)
+
+			authed.GET("/secrets", api.handleListSecrets)
+			authed.PUT("/secrets/:name", api.handleSetSecret)
+			authed.DELETE("/secrets/:name", api.handleClearSecret)
+
+			authed.GET("/lane-agents", api.handleListLaneAgents)
+
+			authed.GET("/projects/:id/lanes", api.handleListProjectLanes)
+			authed.POST("/projects/:id/lanes", api.handleCreateLane)
+			authed.GET("/lanes/:id", api.handleGetLane)
+			authed.PATCH("/lanes/:id", api.handlePatchLane)
+			authed.GET("/lanes/:id/messages", api.handleListLaneMessages)
+			authed.POST("/lanes/:id/messages", api.handlePostLaneMessage)
+			authed.GET("/lanes/:id/ws", api.handleLaneWebSocket)
+
+			authed.GET("/lanes/:id/participants", api.handleListLaneParticipants)
+			authed.POST("/lanes/:id/invites", api.handleCreateLaneInvite)
+			authed.GET("/lanes/:id/invites", api.handleListLaneInvites)
+			authed.DELETE("/lanes/:id/participants/:user_id", api.handleKickLaneParticipant)
+			authed.POST("/lane-invites/:token/accept", api.handleAcceptLaneInvite)
+
+			authed.GET("/organization-members", api.handleListOrganizationMembers)
 		}
 	}
 

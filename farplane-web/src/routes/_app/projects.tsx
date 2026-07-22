@@ -220,14 +220,20 @@ function ProjectsPage() {
         ) : null}
         <ul className="divide-border divide-y rounded-md border">
           {projects.map((project) => (
-            <li key={project.id} className="space-y-1 px-4 py-3">
-              <p className="font-medium">{project.name}</p>
-              <p className="text-muted-foreground text-xs">
-                {project.github_full_name} · {project.default_branch}
-                {project.github_access_status === 'revoked'
-                  ? ' · access revoked'
-                  : ''}
-              </p>
+            <li key={project.id}>
+              <Link
+                to="/projects/$projectId"
+                params={{ projectId: project.id }}
+                className="hover:bg-muted/50 block space-y-1 px-4 py-3"
+              >
+                <p className="font-medium">{project.name}</p>
+                <p className="text-muted-foreground text-xs">
+                  {project.github_full_name} · {project.default_branch}
+                  {project.github_access_status === 'revoked'
+                    ? ' · access revoked'
+                    : ''}
+                </p>
+              </Link>
             </li>
           ))}
         </ul>

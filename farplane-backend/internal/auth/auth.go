@@ -60,14 +60,16 @@ func NewSessionToken() (string, error) {
 
 // OAuth intents carried in signed Google state.
 const (
-	OAuthIntentSetup = "setup"
-	OAuthIntentLogin = "login"
+	OAuthIntentSetup      = "setup"
+	OAuthIntentLogin      = "login"
+	OAuthIntentLaneInvite = "lane_invite"
 )
 
 // OAuthState is the signed payload for Google OAuth start/callback.
 type OAuthState struct {
 	Intent           string `json:"intent"`
 	OrganizationName string `json:"organization_name,omitempty"`
+	InviteToken      string `json:"invite_token,omitempty"`
 	Nonce            string `json:"nonce"`
 	ExpiresAtUnix    int64  `json:"exp"`
 }
