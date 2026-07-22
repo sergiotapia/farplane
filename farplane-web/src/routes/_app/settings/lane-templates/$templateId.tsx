@@ -2,10 +2,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 
+import { DockerfileEditor } from '@/components/dockerfile-editor'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import {
   ApiError,
   forkLaneTemplate,
@@ -162,14 +162,13 @@ function LaneTemplateDetailPage() {
             Status: {selected.validation_status}
           </span>
         </div>
-        <Textarea
+        <DockerfileEditor
           id="dockerfile"
           value={dockerfileText}
-          onChange={(e) => {
-            setDockerfileText(e.target.value)
+          onChange={(value) => {
+            setDockerfileText(value)
             if (saveMutation.isError) saveMutation.reset()
           }}
-          className="min-h-[320px] font-mono text-xs"
         />
         <p className="text-muted-foreground text-xs">
           Save lints the Dockerfile and only persists when lint passes. Validate
