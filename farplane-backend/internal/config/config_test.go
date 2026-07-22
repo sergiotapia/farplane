@@ -10,8 +10,8 @@ func TestLoad(t *testing.T) {
 	defaultDB := "postgres://postgres:postgres@127.0.0.1:5432/farplane_dev?sslmode=disable"
 
 	tests := []struct {
-		name    string
-		env     map[string]string
+		name     string
+		env      map[string]string
 		wantAddr string
 		wantDB   string
 		wantEnv  string
@@ -73,14 +73,36 @@ func TestLoad(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "production with DATABASE_URL",
+			name: "production requires SESSION_SECRET",
 			env: map[string]string{
 				"APP_ENV":      "production",
 				"DATABASE_URL": "postgres://user:pass@db:5432/farplane?sslmode=require",
 			},
+			wantErr: true,
+		},
+		{
+			name: "production with DATABASE_URL and SESSION_SECRET",
+			env: map[string]string{
+				"APP_ENV":        "production",
+				"DATABASE_URL":   "postgres://user:pass@db:5432/farplane?sslmode=require",
+				"SESSION_SECRET": "prod-session-secret",
+			},
 			wantAddr: ":8080",
 			wantDB:   "postgres://user:pass@db:5432/farplane?sslmode=require",
 			wantEnv:  "production",
+		},
+		{
+			name: "google oauth and session cookie env",
+			env: map[string]string{
+				"GOOGLE_CLIENT_ID":      "client-id",
+				"GOOGLE_CLIENT_SECRET":  "client-secret",
+				"GOOGLE_REDIRECT_URL":   "http://localhost:8080/api/v1/auth/google/callback",
+				"APP_BASE_URL":          "http://localhost:3000/",
+				"SESSION_COOKIE_SECURE": "false",
+				"SESSION_SECRET":        "custom-secret",
+			},
+			wantAddr: ":8080",
+			wantDB:   defaultDB,
 		},
 	}
 
@@ -91,6 +113,12 @@ func TestLoad(t *testing.T) {
 			t.Setenv("GIN_MODE", "")
 			t.Setenv("DATABASE_URL", "")
 			t.Setenv("APP_ENV", "")
+			t.Setenv("SESSION_SECRET", "")
+			t.Setenv("SESSION_COOKIE_SECURE", "")
+			t.Setenv("GOOGLE_CLIENT_ID", "")
+			t.Setenv("GOOGLE_CLIENT_SECRET", "")
+			t.Setenv("GOOGLE_REDIRECT_URL", "")
+			t.Setenv("APP_BASE_URL", "")
 			for k, v := range tt.env {
 				t.Setenv(k, v)
 			}
@@ -132,6 +160,28 @@ func TestLoad(t *testing.T) {
 			}
 			if cfg.ShutdownTimeout != 10*time.Second {
 				t.Fatalf("ShutdownTimeout = %v, want 10s", cfg.ShutdownTimeout)
+			}
+			if cfg.SessionSecret == "" {
+				t.Fatal("SessionSecret is empty")
+			}
+			if tt.name == "google oauth and session cookie env" {
+				if !cfg.GoogleOAuthConfigured() {
+					t.Fatal("expected GoogleOAuthConfigured true")
+				}
+				if cfg.AppBaseURL != "http://localhost:3000" {
+					t.Fatalf("AppBaseURL = %q, want trimmed base", cfg.AppBaseURL)
+				}
+				if cfg.SessionCookieSecure {
+					t.Fatal("SessionCookieSecure = true, want false")
+				}
+				if cfg.SessionSecret != "custom-secret" {
+					t.Fatalf("SessionSecret = %q", cfg.SessionSecret)
+				}
+			}
+			if tt.name == "production with DATABASE_URL and SESSION_SECRET" {
+				if !cfg.SessionCookieSecure {
+					t.Fatal("SessionCookieSecure = false, want true for production default")
+				}
 			}
 		})
 	}

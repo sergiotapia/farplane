@@ -80,3 +80,17 @@ func (i OrganizationInvite) IsPending(now time.Time) bool {
 	}
 	return true
 }
+
+// Session is an opaque browser login token stored in Postgres.
+type Session struct {
+	ID        string
+	Token     string
+	UserID    string
+	ExpiresAt time.Time
+	CreatedAt time.Time
+}
+
+// IsValid reports whether the session is still usable at now.
+func (s Session) IsValid(now time.Time) bool {
+	return s.ExpiresAt.After(now)
+}

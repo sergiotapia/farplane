@@ -46,7 +46,7 @@ func withProvider(databaseURL string, fn func(context.Context, *goose.Provider) 
 	if err != nil {
 		return err
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	fsys, err := fs.Sub(embedMigrations, migrationsDir)
 	if err != nil {

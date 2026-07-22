@@ -9,16 +9,27 @@ import (
 	"testing"
 	"time"
 
+	"github.com/farplane/farplane/farplane-backend/internal/config"
 	"github.com/farplane/farplane/farplane-backend/internal/db"
 	"github.com/farplane/farplane/farplane-backend/internal/httpapi"
 )
+
+func testConfig() config.Config {
+	return config.Config{
+		AppBaseURL:          "http://localhost:3000",
+		GoogleRedirectURL:   "http://localhost:8080/api/v1/auth/google/callback",
+		SessionSecret:       "test-session-secret",
+		SessionCookieSecure: false,
+		SessionTTL:          24 * time.Hour,
+	}
+}
 
 func TestHealthLiveness(t *testing.T) {
 	t.Parallel()
 
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	rec := httptest.NewRecorder()
-	httpapi.New(nil).ServeHTTP(rec, req)
+	httpapi.New(nil, testConfig()).ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
@@ -38,7 +49,7 @@ func TestReadyWithoutPool(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/ready", nil)
 	rec := httptest.NewRecorder()
-	httpapi.New(nil).ServeHTTP(rec, req)
+	httpapi.New(nil, testConfig()).ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusServiceUnavailable)
@@ -77,7 +88,7 @@ func TestReadyWithPool(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/ready", nil)
 	rec := httptest.NewRecorder()
-	httpapi.New(pool).ServeHTTP(rec, req)
+	httpapi.New(pool, testConfig()).ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
@@ -100,7 +111,7 @@ func TestHello(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/hello", nil)
 	rec := httptest.NewRecorder()
-	httpapi.New(nil).ServeHTTP(rec, req)
+	httpapi.New(nil, testConfig()).ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
@@ -118,13 +129,15 @@ func TestHello(t *testing.T) {
 func TestCORSAllowsSPAOrigin(t *testing.T) {
 	t.Parallel()
 
-	req := httptest.NewRequest(http.MethodOptions, "/api/v1/hello", nil)
-	req.Header.Set("Origin", "http://localhost:3000")
-	req.Header.Set("Access-Control-Request-Method", "GET")
-	rec := httptest.NewRecorder()
-	httpapi.New(nil).ServeHTTP(rec, req)
+	for _, origin := range []string{"http://localhost:3000", "http://127.0.0.1:3000"} {
+		req := httptest.NewRequest(http.MethodOptions, "/api/v1/hello", nil)
+		req.Header.Set("Origin", origin)
+		req.Header.Set("Access-Control-Request-Method", "GET")
+		rec := httptest.NewRecorder()
+		httpapi.New(nil, testConfig()).ServeHTTP(rec, req)
 
-	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "http://localhost:3000" {
-		t.Fatalf("Access-Control-Allow-Origin = %q, want SPA origin", got)
+		if got := rec.Header().Get("Access-Control-Allow-Origin"); got != origin {
+			t.Fatalf("Access-Control-Allow-Origin = %q, want %q", got, origin)
+		}
 	}
 }
