@@ -132,3 +132,22 @@
     margin: 0;
   }
 }
+
+/* Lane "working" status icon (sidebar). */
+@keyframes lane-bar {
+  0%,
+  100% {
+    transform: scaleY(0.35);
+    opacity: 0.45;
+  }
+  50% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+.lane-bar {
+  animation: lane-bar 0.9s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center bottom;
+}

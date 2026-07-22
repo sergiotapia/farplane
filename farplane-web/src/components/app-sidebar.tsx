@@ -11,6 +11,7 @@ import {
   SettingsIcon,
 } from 'lucide-react'
 
+import { LanesNav } from '@/components/navigation/lanes-nav'
 import { Button } from '@/components/ui/button'
 import {
   Sidebar,
@@ -103,6 +104,8 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        <LanesNav />
 
         <SidebarGroup>
           <SidebarGroupLabel>
