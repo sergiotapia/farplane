@@ -7,19 +7,26 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
+
+	"github.com/gin-gonic/gin"
 
 	"github.com/farplane/farplane/farplane-backend/internal/config"
-	"github.com/farplane/farplane/farplane-backend/internal/server"
+	"github.com/farplane/farplane/farplane-backend/internal/httpapi"
 )
 
 func main() {
 	cfg := config.Load()
-	engine := server.New()
+	if cfg.GinMode != "" {
+		gin.SetMode(cfg.GinMode)
+	}
 
 	srv := &http.Server{
-		Addr:    cfg.Addr,
-		Handler: engine,
+		Addr:              cfg.Addr,
+		Handler:           httpapi.New(),
+		ReadHeaderTimeout: cfg.ReadHeaderTimeout,
+		ReadTimeout:       cfg.ReadTimeout,
+		WriteTimeout:      cfg.WriteTimeout,
+		IdleTimeout:       cfg.IdleTimeout,
 	}
 
 	go func() {
@@ -33,7 +40,7 @@ func main() {
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
 		log.Fatalf("shutdown: %v", err)
