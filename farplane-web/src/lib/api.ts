@@ -350,6 +350,7 @@ export type LaneTemplate = {
   validated_at?: string | null
   created_at: string
   updated_at: string
+  in_use: boolean
 }
 
 export type OrganizationSecret = {
@@ -445,6 +446,12 @@ export function forkLaneTemplate(
   return apiFetch(`/api/v1/lane-templates/${id}/fork`, {
     method: 'POST',
     body: JSON.stringify({ name }),
+  })
+}
+
+export function deleteLaneTemplate(id: string): Promise<void> {
+  return apiFetch(`/api/v1/lane-templates/${id}`, {
+    method: 'DELETE',
   })
 }
 

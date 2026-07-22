@@ -101,6 +101,7 @@ func New(pool *pgxpool.Pool, cfg config.Config, opts ...Option) *gin.Engine {
 			authed.POST("/lane-templates", api.handleCreateLaneTemplate)
 			authed.GET("/lane-templates/:id", api.handleGetLaneTemplate)
 			authed.PATCH("/lane-templates/:id", api.handleUpdateLaneTemplate)
+			authed.DELETE("/lane-templates/:id", api.handleDeleteLaneTemplate)
 			authed.POST("/lane-templates/:id/fork", api.handleForkLaneTemplate)
 			authed.POST("/lane-templates/:id/validate", api.handleValidateLaneTemplate)
 

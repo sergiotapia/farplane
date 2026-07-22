@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"errors"
 	"log"
 	"net/http"
 	"strings"
@@ -38,9 +39,18 @@ func (a *api) handleListLaneTemplates(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list lane templates"})
 		return
 	}
+	ids := make([]string, 0, len(items))
+	for _, t := range items {
+		ids = append(ids, t.ID)
+	}
+	inUse, err := a.store.LaneTemplatesInUse(c.Request.Context(), ids)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list lane templates"})
+		return
+	}
 	out := make([]gin.H, 0, len(items))
 	for _, t := range items {
-		out = append(out, laneTemplateJSON(t))
+		out = append(out, laneTemplateJSON(t, inUse[t.ID]))
 	}
 	c.JSON(http.StatusOK, gin.H{"lane_templates": out})
 }
@@ -98,7 +108,7 @@ func (a *api) handleCreateLaneTemplate(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusCreated, laneTemplateJSON(t))
+	c.JSON(http.StatusCreated, laneTemplateJSON(t, false))
 }
 
 func (a *api) handleGetLaneTemplate(c *gin.Context) {
@@ -115,7 +125,12 @@ func (a *api) handleGetLaneTemplate(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
-	c.JSON(http.StatusOK, laneTemplateJSON(t))
+	inUse, err := a.store.LaneTemplatesInUse(c.Request.Context(), []string{t.ID})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load lane template"})
+		return
+	}
+	c.JSON(http.StatusOK, laneTemplateJSON(t, inUse[t.ID]))
 }
 
 func (a *api) handleUpdateLaneTemplate(c *gin.Context) {
@@ -161,7 +176,12 @@ func (a *api) handleUpdateLaneTemplate(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, laneTemplateJSON(updated))
+	inUse, err := a.store.LaneTemplatesInUse(c.Request.Context(), []string{updated.ID})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update lane template"})
+		return
+	}
+	c.JSON(http.StatusOK, laneTemplateJSON(updated, inUse[updated.ID]))
 }
 
 func (a *api) handleForkLaneTemplate(c *gin.Context) {
@@ -185,7 +205,39 @@ func (a *api) handleForkLaneTemplate(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusCreated, laneTemplateJSON(forked))
+	c.JSON(http.StatusCreated, laneTemplateJSON(forked, false))
+}
+
+func (a *api) handleDeleteLaneTemplate(c *gin.Context) {
+	principal, ok := a.requirePrincipal(c)
+	if !ok {
+		return
+	}
+	t, err := a.store.GetLaneTemplate(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		writeStoreError(c, err)
+		return
+	}
+	if t.OrganizationID != principal.Organization.ID {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	if err := a.store.DeleteLaneTemplate(c.Request.Context(), t.ID); err != nil {
+		switch {
+		case errors.Is(err, store.ErrLaneTemplateInUse):
+			c.JSON(http.StatusConflict, gin.H{
+				"error": "This template is used by a Lane, so it cannot be deleted.",
+			})
+		case errors.Is(err, store.ErrLaneTemplateIsDefault):
+			c.JSON(http.StatusConflict, gin.H{
+				"error": "The default template cannot be deleted.",
+			})
+		default:
+			writeStoreError(c, err)
+		}
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
 
 func (a *api) handleValidateLaneTemplate(c *gin.Context) {
@@ -243,7 +295,12 @@ func (a *api) handleValidateLaneTemplate(c *gin.Context) {
 	if !okBuild {
 		status = http.StatusUnprocessableEntity
 	}
-	c.JSON(status, laneTemplateJSON(updated))
+	inUse, inUseErr := a.store.LaneTemplatesInUse(c.Request.Context(), []string{updated.ID})
+	if inUseErr != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save validation result"})
+		return
+	}
+	c.JSON(status, laneTemplateJSON(updated, inUse[updated.ID]))
 }
 
 // validationLogTail returns the last maxLen runes of logText for server logs.
@@ -258,22 +315,23 @@ func validationLogTail(logText string, maxLen int) string {
 	return string(runes[len(runes)-maxLen:])
 }
 
-func laneTemplateJSON(t models.LaneTemplate) gin.H {
+func laneTemplateJSON(t models.LaneTemplate, inUse bool) gin.H {
 	return gin.H{
-		"id":                      t.ID,
-		"organization_id":         t.OrganizationID,
-		"name":                    t.Name,
-		"description":             t.Description,
-		"dockerfile_text":         t.DockerfileText,
-		"is_system_default":       t.IsSystemDefault,
-		"forked_from_template_id": t.ForkedFromTemplateID,
-		"created_by_user_id":      t.CreatedByUserID,
-		"updated_by_user_id":      t.UpdatedByUserID,
-		"validation_status":       t.ValidationStatus,
-		"validated_image_reference":     t.ValidatedImageReference,
-		"last_validation_log":     t.LastValidationLog,
-		"validated_at":            t.ValidatedAt,
-		"created_at":              t.CreatedAt,
-		"updated_at":              t.UpdatedAt,
+		"id":                        t.ID,
+		"organization_id":           t.OrganizationID,
+		"name":                      t.Name,
+		"description":               t.Description,
+		"dockerfile_text":           t.DockerfileText,
+		"is_system_default":         t.IsSystemDefault,
+		"forked_from_template_id":   t.ForkedFromTemplateID,
+		"created_by_user_id":        t.CreatedByUserID,
+		"updated_by_user_id":        t.UpdatedByUserID,
+		"validation_status":         t.ValidationStatus,
+		"validated_image_reference": t.ValidatedImageReference,
+		"last_validation_log":       t.LastValidationLog,
+		"validated_at":              t.ValidatedAt,
+		"created_at":                t.CreatedAt,
+		"updated_at":                t.UpdatedAt,
+		"in_use":                    inUse,
 	}
 }

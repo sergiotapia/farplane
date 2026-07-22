@@ -245,6 +245,65 @@ func (s *Store) ForkLaneTemplate(ctx context.Context, id, newName, userID string
 	})
 }
 
+// ErrLaneTemplateInUse is returned when a template still has lanes pointing at it.
+var ErrLaneTemplateInUse = errors.New("lane template in use")
+
+// ErrLaneTemplateIsDefault is returned when deleting the system default template.
+var ErrLaneTemplateIsDefault = errors.New("lane template is system default")
+
+// LaneTemplatesInUse reports which template ids are referenced by at least one lane.
+func (s *Store) LaneTemplatesInUse(ctx context.Context, ids []string) (map[string]bool, error) {
+	out := make(map[string]bool, len(ids))
+	if len(ids) == 0 {
+		return out, nil
+	}
+	const q = `
+		SELECT DISTINCT lane_template_id::text
+		FROM lanes
+		WHERE lane_template_id = ANY($1::uuid[])
+	`
+	rows, err := s.pool.Query(ctx, q, ids)
+	if err != nil {
+		return nil, fmt.Errorf("lane templates in use: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("lane templates in use: %w", err)
+		}
+		out[id] = true
+	}
+	return out, rows.Err()
+}
+
+// DeleteLaneTemplate removes a template when it is unused and not the system default.
+func (s *Store) DeleteLaneTemplate(ctx context.Context, id string) error {
+	t, err := s.GetLaneTemplate(ctx, id)
+	if err != nil {
+		return err
+	}
+	if t.IsSystemDefault {
+		return ErrLaneTemplateIsDefault
+	}
+	inUse, err := s.LaneTemplatesInUse(ctx, []string{id})
+	if err != nil {
+		return err
+	}
+	if inUse[id] {
+		return ErrLaneTemplateInUse
+	}
+	const q = `DELETE FROM lane_templates WHERE id = $1`
+	tag, err := s.pool.Exec(ctx, q, id)
+	if err != nil {
+		return fmt.Errorf("delete lane template: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 // CompleteLaneTemplateValidation stores build result as valid or invalid.
 func (s *Store) CompleteLaneTemplateValidation(ctx context.Context, id string, ok bool, imageRef, logText string) (models.LaneTemplate, error) {
 	now := time.Now().UTC()
