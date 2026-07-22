@@ -1,8 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, createFileRoute } from '@tanstack/react-router'
+import { Lock } from 'lucide-react'
 import { useState } from 'react'
 
 import { Button } from '@/components/ui/button'
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from '@/components/ui/combobox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -11,16 +20,23 @@ import {
   getProjects,
   githubRepositoriesQueryKey,
   projectsQueryKey,
+  type GitHubRepository,
 } from '@/lib/api'
 
 export const Route = createFileRoute('/_app/projects')({
   component: ProjectsPage,
 })
 
+function repositoryShortName(fullName: string): string {
+  const slash = fullName.lastIndexOf('/')
+  return slash === -1 ? fullName : fullName.slice(slash + 1)
+}
+
 function ProjectsPage() {
   const queryClient = useQueryClient()
   const [name, setName] = useState('')
-  const [repositoryId, setRepositoryId] = useState('')
+  const [selectedRepository, setSelectedRepository] =
+    useState<GitHubRepository | null>(null)
 
   const projectsQuery = useQuery({
     queryKey: projectsQueryKey,
@@ -36,13 +52,36 @@ function ProjectsPage() {
     mutationFn: createProject,
     onSuccess: async () => {
       setName('')
-      setRepositoryId('')
+      setSelectedRepository(null)
       await queryClient.invalidateQueries({ queryKey: projectsQueryKey })
     },
   })
 
   const projects = projectsQuery.data?.projects ?? []
   const repositories = repositoriesQuery.data?.repositories ?? []
+  // Wait for projects before filtering; otherwise every repo looks free
+  // while projects are still loading and duplicates can be submitted.
+  const pickerReady = projectsQuery.isSuccess && repositoriesQuery.isSuccess
+  const linkedRepositoryIds = new Set(
+    projects.map((project) => project.github_repository_id),
+  )
+  const availableRepositories = pickerReady
+    ? repositories.filter(
+        (repo) => !linkedRepositoryIds.has(repo.github_repository_id),
+      )
+    : []
+  const pickerDisabled = !pickerReady || availableRepositories.length === 0
+
+  if (
+    selectedRepository &&
+    pickerReady &&
+    !availableRepositories.some(
+      (repo) =>
+        repo.github_repository_id === selectedRepository.github_repository_id,
+    )
+  ) {
+    setSelectedRepository(null)
+  }
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-8">
@@ -65,14 +104,84 @@ function ProjectsPage() {
         className="space-y-4"
         onSubmit={(event) => {
           event.preventDefault()
-          const githubRepositoryId = Number(repositoryId)
-          if (!name.trim() || !Number.isFinite(githubRepositoryId)) return
+          if (!selectedRepository || !name.trim() || pickerDisabled) return
           createMutation.mutate({
             name: name.trim(),
-            github_repository_id: githubRepositoryId,
+            github_repository_id: selectedRepository.github_repository_id,
           })
         }}
       >
+        <div className="space-y-2">
+          <Label htmlFor="project-repo">GitHub repository</Label>
+          <Combobox
+            items={availableRepositories}
+            value={selectedRepository}
+            onValueChange={(repo) => {
+              setSelectedRepository(repo)
+              if (repo) {
+                setName(repositoryShortName(repo.full_name))
+              } else {
+                setName('')
+              }
+            }}
+            itemToStringLabel={(repo) => repo.full_name}
+            itemToStringValue={(repo) =>
+              String(repo.github_repository_id)
+            }
+            isItemEqualToValue={(a, b) =>
+              a.github_repository_id === b.github_repository_id
+            }
+            disabled={pickerDisabled}
+          >
+            <ComboboxInput
+              id="project-repo"
+              placeholder={
+                pickerReady
+                  ? 'Search repositories…'
+                  : 'Loading repositories…'
+              }
+              className="w-full"
+              showClear
+              disabled={pickerDisabled}
+            />
+            <ComboboxContent>
+              <ComboboxEmpty>No repositories found.</ComboboxEmpty>
+              <ComboboxList>
+                {(repo) => (
+                  <ComboboxItem
+                    key={repo.github_repository_id}
+                    value={repo}
+                  >
+                    {repo.private ? (
+                      <Lock
+                        className="text-muted-foreground"
+                        aria-label="Private repository"
+                      />
+                    ) : null}
+                    <span className="truncate">{repo.full_name}</span>
+                  </ComboboxItem>
+                )}
+              </ComboboxList>
+            </ComboboxContent>
+          </Combobox>
+          {repositoriesQuery.isSuccess && repositories.length === 0 ? (
+            <p className="text-muted-foreground text-xs">
+              No repositories yet. Connect GitHub first.
+            </p>
+          ) : null}
+          {pickerReady &&
+          repositories.length > 0 &&
+          availableRepositories.length === 0 ? (
+            <p className="text-muted-foreground text-xs">
+              Every connected repository already has a project.
+            </p>
+          ) : null}
+          {projectsQuery.isError || repositoriesQuery.isError ? (
+            <p className="text-destructive text-xs">
+              Failed to load repositories. Refresh and try again.
+            </p>
+          ) : null}
+        </div>
         <div className="space-y-2">
           <Label htmlFor="project-name">Name</Label>
           <Input
@@ -82,32 +191,6 @@ function ProjectsPage() {
             placeholder="Rails app"
             required
           />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="project-repo">GitHub repository</Label>
-          <select
-            id="project-repo"
-            className="border-input bg-background h-9 w-full rounded-md border px-3 text-sm"
-            value={repositoryId}
-            onChange={(event) => setRepositoryId(event.target.value)}
-            required
-          >
-            <option value="">Select a repository…</option>
-            {repositories.map((repo) => (
-              <option
-                key={repo.github_repository_id}
-                value={String(repo.github_repository_id)}
-              >
-                {repo.full_name}
-                {repo.private ? ' (private)' : ''}
-              </option>
-            ))}
-          </select>
-          {repositories.length === 0 && !repositoriesQuery.isLoading ? (
-            <p className="text-muted-foreground text-xs">
-              No repositories yet. Connect GitHub first.
-            </p>
-          ) : null}
         </div>
         {createMutation.isError ? (
           <p className="text-destructive text-sm">
@@ -119,8 +202,8 @@ function ProjectsPage() {
           disabled={
             createMutation.isPending ||
             !name.trim() ||
-            !repositoryId ||
-            repositories.length === 0
+            !selectedRepository ||
+            pickerDisabled
           }
         >
           {createMutation.isPending ? 'Creating…' : 'Create project'}
