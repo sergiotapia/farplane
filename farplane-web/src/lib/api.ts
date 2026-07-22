@@ -161,3 +161,157 @@ export function startGoogleLogin(): void {
 
 export const setupStatusQueryKey = ['setup', 'status'] as const
 export const meQueryKey = ['me'] as const
+export const githubInstallationsQueryKey = ['github', 'installations'] as const
+export const githubRepositoriesQueryKey = ['github', 'repositories'] as const
+export const projectsQueryKey = ['projects'] as const
+
+export type GitHubInstallation = {
+  id: string
+  github_installation_id: number
+  github_account_id: number
+  github_account_login: string
+  github_account_type: 'User' | 'Organization' | string
+  repository_selection: string
+  connected_by_user_id: string
+  suspended: boolean
+  created_at: string
+}
+
+export type GitHubInstallationsResponse = {
+  configured: boolean
+  api_base_url: string
+  api_base_url_public: boolean
+  installations: GitHubInstallation[]
+}
+
+export type GitHubRepository = {
+  github_repository_id: number
+  full_name: string
+  default_branch: string
+  private: boolean
+  html_url: string
+  github_installation_id: string
+  github_account_type: string
+  github_account_login: string
+}
+
+export type GitHubRepositoriesResponse = {
+  repositories: GitHubRepository[]
+}
+
+export type Project = {
+  id: string
+  organization_id: string
+  name: string
+  github_repository_id: number
+  github_installation_id: string
+  default_branch: string
+  github_full_name: string
+  github_access_status: 'active' | 'revoked' | string
+  created_by_user_id: string
+  created_at: string
+  updated_at: string
+}
+
+export type ProjectsResponse = {
+  projects: Project[]
+}
+
+export function getGitHubInstallations(): Promise<GitHubInstallationsResponse> {
+  return apiFetch<GitHubInstallationsResponse>('/api/v1/github/installations')
+}
+
+export type GitHubManifestStartResponse = {
+  action: string
+  manifest: string
+  state: string
+}
+
+function assertGitHubHostURL(raw: string, label: string): URL {
+  let parsed: URL
+  try {
+    parsed = new URL(raw)
+  } catch {
+    throw new ApiError(500, `${label} is not a valid URL`, { url: raw })
+  }
+  if (parsed.protocol !== 'https:' || parsed.hostname !== 'github.com') {
+    throw new ApiError(500, `${label} must be an https://github.com URL`, {
+      url: raw,
+    })
+  }
+  return parsed
+}
+
+/** Start GitHub App Manifest registration (self-hosted App create). */
+export async function startGitHubAppManifest(
+  githubOrganizationLogin?: string,
+): Promise<void> {
+  const body = await apiFetch<GitHubManifestStartResponse>(
+    '/api/v1/github/app/manifest/start',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        github_organization_login: githubOrganizationLogin?.trim() || undefined,
+      }),
+    },
+  )
+  if (!body.action || !body.manifest) {
+    throw new ApiError(500, 'GitHub App manifest response incomplete', body)
+  }
+  const actionURL = assertGitHubHostURL(body.action, 'GitHub App create URL')
+  if (body.state) {
+    actionURL.searchParams.set('state', body.state)
+  }
+  const form = document.createElement('form')
+  form.method = 'POST'
+  form.action = actionURL.toString()
+  const input = document.createElement('input')
+  input.type = 'hidden'
+  input.name = 'manifest'
+  input.value = body.manifest
+  form.appendChild(input)
+  document.body.appendChild(form)
+  form.submit()
+}
+
+export async function startGitHubInstall(): Promise<void> {
+  const body = await apiFetch<{ url: string }>('/api/v1/github/install/start', {
+    method: 'POST',
+  })
+  if (!body.url) {
+    throw new ApiError(500, 'GitHub install URL missing', body)
+  }
+  const installURL = assertGitHubHostURL(body.url, 'GitHub install URL')
+  window.location.assign(installURL.toString())
+}
+
+export async function disconnectGitHubInstallation(
+  installationId: string,
+): Promise<void> {
+  await apiFetch<null>(`/api/v1/github/installations/${installationId}`, {
+    method: 'DELETE',
+  })
+}
+
+export function getGitHubRepositories(
+  refresh = false,
+): Promise<GitHubRepositoriesResponse> {
+  const path = refresh
+    ? '/api/v1/github/repositories?refresh=1'
+    : '/api/v1/github/repositories'
+  return apiFetch<GitHubRepositoriesResponse>(path)
+}
+
+export function getProjects(): Promise<ProjectsResponse> {
+  return apiFetch<ProjectsResponse>('/api/v1/projects')
+}
+
+export function createProject(payload: {
+  name: string
+  github_repository_id: number
+}): Promise<Project> {
+  return apiFetch<Project>('/api/v1/projects', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}

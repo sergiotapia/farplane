@@ -22,9 +22,9 @@ import (
 )
 
 const (
-	oauthStateTTL      = 10 * time.Minute
-	googleUserInfoURL  = "https://openidconnect.googleapis.com/v1/userinfo"
-	oauthNonceCookie   = "farplane_oauth_nonce"
+	oauthStateTTL        = 10 * time.Minute
+	googleUserInfoURL    = "https://openidconnect.googleapis.com/v1/userinfo"
+	oauthNonceCookie     = "farplane_oauth_nonce"
 	oauthNonceCookiePath = "/api/v1/auth/google"
 )
 

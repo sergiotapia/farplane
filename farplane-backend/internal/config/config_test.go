@@ -5,6 +5,24 @@ import (
 	"time"
 )
 
+func TestIsPublicAPIBaseURL(t *testing.T) {
+	t.Parallel()
+	cases := map[string]bool{
+		"":                            false,
+		"http://localhost:8080":       false,
+		"https://127.0.0.1":           false,
+		"https://localhost:8080":      false,
+		"http://farplane.example.com": false, // cleartext rejected
+		"https://ae7f.ngrok-free.app": true,
+		"https://farplane.example.com": true,
+	}
+	for raw, want := range cases {
+		if got := IsPublicAPIBaseURL(raw); got != want {
+			t.Fatalf("IsPublicAPIBaseURL(%q) = %v, want %v", raw, got, want)
+		}
+	}
+}
+
 func TestLoad(t *testing.T) {
 	// Cannot use t.Parallel: this test mutates process environment via t.Setenv.
 	defaultDB := "postgres://postgres:postgres@127.0.0.1:5432/farplane_dev?sslmode=disable"

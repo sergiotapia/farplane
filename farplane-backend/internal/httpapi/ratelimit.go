@@ -11,11 +11,11 @@ import (
 
 // Simple per-IP sliding window for password auth endpoints.
 type ipRateLimiter struct {
-	mu       sync.Mutex
-	hits     map[string][]time.Time
-	limit    int
-	window   time.Duration
-	now      func() time.Time
+	mu     sync.Mutex
+	hits   map[string][]time.Time
+	limit  int
+	window time.Duration
+	now    func() time.Time
 }
 
 func newIPRateLimiter(limit int, window time.Duration) *ipRateLimiter {

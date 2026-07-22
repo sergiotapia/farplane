@@ -14,6 +14,8 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as SetupRouteImport } from './routes/setup'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppAboutRouteImport } from './routes/_app/about'
+import { Route as AppProjectsRouteImport } from './routes/_app/projects'
+import { Route as AppSettingsGithubRouteImport } from './routes/_app/settings/github'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -39,18 +41,32 @@ const AppAboutRoute = AppAboutRouteImport.update({
   path: '/about',
   getParentRoute: () => AppRoute,
 } as any)
+const AppProjectsRoute = AppProjectsRouteImport.update({
+  id: '/projects',
+  path: '/projects',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSettingsGithubRoute = AppSettingsGithubRouteImport.update({
+  id: '/settings/github',
+  path: '/settings/github',
+  getParentRoute: () => AppRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/login': typeof LoginRoute
   '/setup': typeof SetupRoute
   '/about': typeof AppAboutRoute
+  '/projects': typeof AppProjectsRoute
+  '/settings/github': typeof AppSettingsGithubRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/setup': typeof SetupRoute
   '/about': typeof AppAboutRoute
+  '/projects': typeof AppProjectsRoute
   '/': typeof AppIndexRoute
+  '/settings/github': typeof AppSettingsGithubRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -58,14 +74,25 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/setup': typeof SetupRoute
   '/_app/about': typeof AppAboutRoute
+  '/_app/projects': typeof AppProjectsRoute
   '/_app/': typeof AppIndexRoute
+  '/_app/settings/github': typeof AppSettingsGithubRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/setup' | '/about'
+  fullPaths:
+    '/' | '/login' | '/setup' | '/about' | '/projects' | '/settings/github'
   fileRoutesByTo: FileRoutesByTo
-  to: '/login' | '/setup' | '/about' | '/'
-  id: '__root__' | '/_app' | '/login' | '/setup' | '/_app/about' | '/_app/'
+  to: '/login' | '/setup' | '/about' | '/projects' | '/' | '/settings/github'
+  id:
+    | '__root__'
+    | '/_app'
+    | '/login'
+    | '/setup'
+    | '/_app/about'
+    | '/_app/projects'
+    | '/_app/'
+    | '/_app/settings/github'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -111,17 +138,35 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAboutRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/projects': {
+      id: '/_app/projects'
+      path: '/projects'
+      fullPath: '/projects'
+      preLoaderRoute: typeof AppProjectsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/settings/github': {
+      id: '/_app/settings/github'
+      path: '/settings/github'
+      fullPath: '/settings/github'
+      preLoaderRoute: typeof AppSettingsGithubRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
 interface AppRouteChildren {
   AppAboutRoute: typeof AppAboutRoute
+  AppProjectsRoute: typeof AppProjectsRoute
   AppIndexRoute: typeof AppIndexRoute
+  AppSettingsGithubRoute: typeof AppSettingsGithubRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppAboutRoute: AppAboutRoute,
+  AppProjectsRoute: AppProjectsRoute,
   AppIndexRoute: AppIndexRoute,
+  AppSettingsGithubRoute: AppSettingsGithubRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

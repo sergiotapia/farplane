@@ -1,6 +1,12 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useRouteContext, useRouterState } from '@tanstack/react-router'
-import { HomeIcon, InfoIcon, LogOutIcon } from 'lucide-react'
+import {
+  FolderKanbanIcon,
+  HomeIcon,
+  InfoIcon,
+  LogOutIcon,
+  SettingsIcon,
+} from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -20,6 +26,8 @@ import { meQueryKey, postLogout } from '@/lib/api'
 
 const navItems = [
   { to: '/', label: 'Home', icon: HomeIcon },
+  { to: '/projects', label: 'Projects', icon: FolderKanbanIcon },
+  { to: '/settings/github', label: 'GitHub', icon: SettingsIcon },
   { to: '/about', label: 'About', icon: InfoIcon },
 ] as const
 

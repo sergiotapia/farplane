@@ -94,3 +94,80 @@ type Session struct {
 func (s Session) IsValid(now time.Time) bool {
 	return s.ExpiresAt.After(now)
 }
+
+// GitHub account types on an App installation.
+const (
+	GitHubAccountTypeUser         = "User"
+	GitHubAccountTypeOrganization = "Organization"
+)
+
+// GitHub repository selection modes for an App installation.
+const (
+	GitHubRepositorySelectionAll      = "all"
+	GitHubRepositorySelectionSelected = "selected"
+)
+
+// Project GitHub access statuses.
+const (
+	ProjectGitHubAccessActive  = "active"
+	ProjectGitHubAccessRevoked = "revoked"
+)
+
+// GitHubInstallation is a Farplane org link to one GitHub App installation.
+type GitHubInstallation struct {
+	ID                   string
+	OrganizationID       string
+	GitHubInstallationID int64
+	GitHubAccountID      int64
+	GitHubAccountLogin   string
+	GitHubAccountType    string
+	RepositorySelection  string
+	ConnectedByUserID    string
+	SuspendedAt          *time.Time
+	UninstalledAt        *time.Time
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+}
+
+// GitHubRepository is a cached repo visible through one installation.
+type GitHubRepository struct {
+	ID                   string
+	GitHubInstallationID string
+	GitHubRepositoryID   int64
+	FullName             string
+	DefaultBranch        string
+	Private              bool
+	HTMLURL              string
+	RemovedAt            *time.Time
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+}
+
+// GitHubAppCredentials is this Farplane install's GitHub App registration.
+type GitHubAppCredentials struct {
+	ID              string
+	GitHubAppID     int64
+	GitHubAppSlug   string
+	PrivateKeyPEM   string
+	WebhookSecret   string
+	ClientID        string
+	ClientSecret    string
+	CreatedByUserID string
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
+// Project is one app repo under a Farplane organization.
+type Project struct {
+	ID                   string
+	OrganizationID       string
+	Name                 string
+	GitHubRepositoryID   int64
+	GitHubInstallationID string
+	DefaultBranch        string
+	GitHubFullName       string
+	GitHubAccessStatus   string
+	CreatedByUserID      string
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+}

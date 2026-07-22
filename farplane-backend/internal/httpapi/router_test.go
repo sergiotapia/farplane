@@ -16,11 +16,13 @@ import (
 
 func testConfig() config.Config {
 	return config.Config{
-		AppBaseURL:          "http://localhost:3000",
-		GoogleRedirectURL:   "http://localhost:8080/api/v1/auth/google/callback",
-		SessionSecret:       "test-session-secret",
-		SessionCookieSecure: false,
-		SessionTTL:          24 * time.Hour,
+		AppBaseURL:           "http://localhost:3000",
+		AppAPIBaseURL:        "http://localhost:8080",
+		GoogleRedirectURL:    "http://localhost:8080/api/v1/auth/google/callback",
+		GitHubAppCallbackURL: "http://localhost:8080/api/v1/github/callback",
+		SessionSecret:        "test-session-secret",
+		SessionCookieSecure:  false,
+		SessionTTL:           24 * time.Hour,
 	}
 }
 

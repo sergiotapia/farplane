@@ -1,15 +1,18 @@
 package httpapi
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
 
 	"github.com/farplane/farplane/farplane-backend/internal/auth"
 	"github.com/farplane/farplane/farplane-backend/internal/config"
+	"github.com/farplane/farplane/farplane-backend/internal/githubapp"
 	"github.com/farplane/farplane/farplane-backend/internal/models"
 	"github.com/farplane/farplane/farplane-backend/internal/store"
 )
@@ -20,12 +23,69 @@ const (
 )
 
 type api struct {
-	cfg   config.Config
-	store *store.Store
+	cfg    config.Config
+	store  *store.Store
+	github GitHubApp
+
+	githubMu     sync.RWMutex
+	githubForced bool // true when WithGitHubApp injected a test client
+
+	// Optional test hook for manifest code exchange.
+	manifestConvert func(ctx context.Context, code string) (githubapp.ManifestApp, error)
 }
 
 func newAPI(cfg config.Config, st *store.Store) *api {
-	return &api{cfg: cfg, store: st}
+	a := &api{cfg: cfg, store: st}
+	a.github = a.loadGitHubAppLocked()
+	return a
+}
+
+func (a *api) githubApp() GitHubApp {
+	a.githubMu.RLock()
+	defer a.githubMu.RUnlock()
+	return a.github
+}
+
+func (a *api) setGitHubApp(client GitHubApp) {
+	a.githubMu.Lock()
+	defer a.githubMu.Unlock()
+	if a.githubForced {
+		return
+	}
+	a.github = client
+}
+
+func (a *api) loadGitHubAppLocked() GitHubApp {
+	if a.cfg.GitHubAppConfigured() {
+		client, err := githubapp.New(githubapp.Config{
+			AppID:         a.cfg.GitHubAppID,
+			Slug:          a.cfg.GitHubAppSlug,
+			PrivateKeyPEM: a.cfg.GitHubAppPrivateKeyPEM,
+			WebhookSecret: a.cfg.GitHubAppWebhookSecret,
+		})
+		if err == nil {
+			return client
+		}
+	}
+	if a.store == nil {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	creds, err := a.store.GetGitHubAppCredentials(ctx, a.cfg.SessionSecret)
+	if err != nil {
+		return nil
+	}
+	client, err := githubapp.New(githubapp.Config{
+		AppID:         creds.GitHubAppID,
+		Slug:          creds.GitHubAppSlug,
+		PrivateKeyPEM: creds.PrivateKeyPEM,
+		WebhookSecret: creds.WebhookSecret,
+	})
+	if err != nil {
+		return nil
+	}
+	return client
 }
 
 type userJSON struct {

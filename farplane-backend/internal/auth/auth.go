@@ -128,6 +128,58 @@ func NewOAuthNonce() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(b[:]), nil
 }
 
+// GitHubInstallState is the signed payload for GitHub App install start/callback.
+type GitHubInstallState struct {
+	OrganizationID string `json:"organization_id"`
+	UserID         string `json:"user_id"`
+	Nonce          string `json:"nonce"`
+	ExpiresAtUnix  int64  `json:"exp"`
+}
+
+// ErrInvalidGitHubInstallState is returned when install state is bad or expired.
+var ErrInvalidGitHubInstallState = errors.New("invalid github install state")
+
+// SignGitHubInstallState returns a base64url payload + HMAC signature.
+func SignGitHubInstallState(secret string, state GitHubInstallState) (string, error) {
+	if secret == "" {
+		return "", fmt.Errorf("session secret is empty")
+	}
+	raw, err := json.Marshal(state)
+	if err != nil {
+		return "", fmt.Errorf("marshal github install state: %w", err)
+	}
+	payload := base64.RawURLEncoding.EncodeToString(raw)
+	sig := sign(secret, payload)
+	return payload + "." + sig, nil
+}
+
+// ParseGitHubInstallState verifies the signature and expiry.
+func ParseGitHubInstallState(secret, encoded string, now time.Time) (GitHubInstallState, error) {
+	payload, sig, ok := strings.Cut(encoded, ".")
+	if !ok || payload == "" || sig == "" {
+		return GitHubInstallState{}, ErrInvalidGitHubInstallState
+	}
+	expected := sign(secret, payload)
+	if !hmac.Equal([]byte(sig), []byte(expected)) {
+		return GitHubInstallState{}, ErrInvalidGitHubInstallState
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(payload)
+	if err != nil {
+		return GitHubInstallState{}, ErrInvalidGitHubInstallState
+	}
+	var state GitHubInstallState
+	if err := json.Unmarshal(raw, &state); err != nil {
+		return GitHubInstallState{}, ErrInvalidGitHubInstallState
+	}
+	if state.ExpiresAtUnix <= now.Unix() {
+		return GitHubInstallState{}, ErrInvalidGitHubInstallState
+	}
+	if strings.TrimSpace(state.OrganizationID) == "" || strings.TrimSpace(state.UserID) == "" {
+		return GitHubInstallState{}, ErrInvalidGitHubInstallState
+	}
+	return state, nil
+}
+
 func sign(secret, payload string) string {
 	mac := hmac.New(sha256.New, []byte(secret))
 	_, _ = mac.Write([]byte(payload))

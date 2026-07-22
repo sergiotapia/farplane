@@ -80,6 +80,34 @@ func TestOAuthStateRoundTrip(t *testing.T) {
 	}
 }
 
+func TestGitHubInstallStateRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	secret := "test-secret"
+	now := time.Unix(1_700_000_000, 0).UTC()
+	state := GitHubInstallState{
+		OrganizationID: "org-1",
+		UserID:         "user-1",
+		Nonce:          "nonce",
+		ExpiresAtUnix:  now.Add(5 * time.Minute).Unix(),
+	}
+
+	encoded, err := SignGitHubInstallState(secret, state)
+	if err != nil {
+		t.Fatalf("SignGitHubInstallState: %v", err)
+	}
+	got, err := ParseGitHubInstallState(secret, encoded, now)
+	if err != nil {
+		t.Fatalf("ParseGitHubInstallState: %v", err)
+	}
+	if got != state {
+		t.Fatalf("got %+v, want %+v", got, state)
+	}
+	if _, err := ParseGitHubInstallState(secret, encoded, now.Add(10*time.Minute)); err == nil {
+		t.Fatal("expected expired state")
+	}
+}
+
 func TestNewSessionToken(t *testing.T) {
 	t.Parallel()
 

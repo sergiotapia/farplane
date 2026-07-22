@@ -15,7 +15,31 @@ const oauthErrorMessages: Record<string, string> = {
   invalid_intent: 'Google sign-in failed. Try again.',
 }
 
+const githubErrorMessages: Record<string, string> = {
+  github_denied: 'GitHub install was cancelled.',
+  invalid_state: 'GitHub install expired. Try again.',
+  missing_installation: 'GitHub did not return an installation. Try again.',
+  installation_lookup_failed: 'Could not read the GitHub installation.',
+  install_save_failed: 'Could not save the GitHub connection.',
+  repo_sync_failed: 'Connected, but repository sync failed. Refresh later.',
+  github_app_not_configured: 'GitHub App is not configured on this install.',
+  github_app_already_configured: 'A GitHub App is already configured for this install.',
+  missing_manifest_code: 'GitHub App creation did not return a code. Try again.',
+  manifest_exchange_failed: 'Could not finish GitHub App creation. Try again.',
+  manifest_save_failed: 'Could not save GitHub App credentials. Try again.',
+  manifest_forbidden: 'Only owners and admins can create the GitHub App.',
+  manifest_client_failed: 'GitHub App was created but could not be loaded. Restart Farplane.',
+  install_forbidden: 'You are not allowed to connect GitHub for this organization.',
+  installation_owned: 'That GitHub installation belongs to another Farplane organization.',
+  database_unavailable: 'The database is unavailable. Try again later.',
+}
+
 export function messageForOAuthError(code: string | undefined): string | null {
   if (!code) return null
   return oauthErrorMessages[code] ?? 'Google sign-in failed. Try again.'
+}
+
+export function messageForGitHubError(code: string | undefined): string | null {
+  if (!code) return null
+  return githubErrorMessages[code] ?? 'GitHub connect failed. Try again.'
 }
