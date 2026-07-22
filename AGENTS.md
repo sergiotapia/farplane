@@ -1,48 +1,29 @@
-This is a fresh project, not live, no need to preserve backwards compatibility.
+# Farplane
 
-We can always drop the dev db, recreate it from scratch.
-
-Use ASD-STE100 Simplified Technical English (STE for short) for documentation
-and plans.
+Farplane is a control plane and web client for AI agent computers. The Go
+API lives in `farplane-backend/` (Gin, Postgres). The SPA lives in
+`farplane-web/` (TanStack Router, Rsbuild). This project is not live yet:
+you do not need to keep backwards compatibility, and you can drop and
+recreate the local databases at any time.
 
 ## Rules
 
-- Timestamps: use `TIMESTAMPTZ(6)` for all timestamp columns (UTC with microsecond precision; same idea as Ecto `utc_datetime_usec`). Do not use second-precision timestamps. In Go, store as `time.Time` in UTC and keep microsecond resolution.
-- Naming: table and column names must be explicit. Never abbreviate (for example `organizations`, not `orgs`; `organization_id`, not `org_id`). Prefer full words in indexes and constraints too.
+- Write documentation and plans in ASD-STE100 Simplified Technical
+  English (STE).
+- Timestamps: use `TIMESTAMPTZ(6)` for all timestamp columns (UTC,
+  microsecond precision). Do not use second-precision timestamps. In Go,
+  store as `time.Time` in UTC and keep microsecond resolution.
+- Naming: table and column names must be explicit. Never abbreviate (for
+  example `organizations`, not `orgs`; `organization_id`, not `org_id`).
+  Prefer full words in indexes and constraints too.
 
-## Layout
+## How to set up
 
-| Path | Role |
-|---|---|
-| `farplane-backend/` | Go control plane (Gin) |
-| `farplane-web/` | TanStack Router SPA (Rsbuild) |
-| `Makefile` | Common tasks (DB, migrate, test, run) |
-| `mise.toml` | Pinned Go and Bun tools |
-
-## Tools
-
-Install [mise](https://mise.jdx.dev/), then from the repo root:
-
-```bash
-mise install
-```
-
-This installs the Go and Bun versions in `mise.toml`.
-
-## How to run both (local development)
-
-Run the API and the SPA in two terminals.
-
-### 0. Postgres (local)
-
-Use the local Postgres on `127.0.0.1:5432` with user `postgres` / password `postgres`.
-
-| Database | Use |
-|---|---|
-| `farplane_dev` | Local control plane |
-| `farplane_test` | Automated tests |
-
-Create the databases (if needed) and apply migrations:
+1. Install [mise](https://mise.jdx.dev/), then from the repo root run
+   `mise install` (pins Go and Bun from `mise.toml`).
+2. Make sure local Postgres is running on `127.0.0.1:5432` (user
+   `postgres` / password `postgres`).
+3. Create databases and apply migrations:
 
 ```bash
 make db-create
@@ -50,80 +31,17 @@ make migrate-up
 make migrate-up-test
 ```
 
-Default connection strings:
+See `.env.example` for optional overrides (`DATABASE_URL`, `APP_ENV`,
+OAuth, and so on).
 
-- Dev: `postgres://postgres:postgres@127.0.0.1:5432/farplane_dev?sslmode=disable`
-- Test: `postgres://postgres:postgres@127.0.0.1:5432/farplane_test?sslmode=disable`
+## How to run
 
-Override with `DATABASE_URL` / `TEST_DATABASE_URL`. Set `APP_ENV=local` (default) to allow the local DSN; other `APP_ENV` values require `DATABASE_URL`. See `.env.example`.
-
-Useful Make targets:
-
-- `make db-create` / `make db-drop` — create or drop the Farplane databases
-- `make db-psql` / `make db-psql-test` — open `psql` on dev or test
-- `make migrate-up` / `make migrate-down` / `make migrate-status` — schema migrations (dev)
-- `make migrate-up-test` / `make migrate-reset-test` — schema migrations (test)
-- `make migrate-create NAME=add_users` — add a new SQL migration file
-- `make test` / `make test-backend` — run tests
-- `make backend` / `make web` — run the API or the SPA
-
-Stack notes:
-
-- Driver: [pgx/v5](https://github.com/jackc/pgx) with `pgxpool`
-- Migrations: [pressly/goose](https://github.com/pressly/goose) (SQL files under `farplane-backend/internal/db/migrations`)
-
-### 1. Control plane (`farplane-backend`)
-
-Default listen address: `:8080` (`PORT` or `ADDR` can override).
-Requires a reachable Postgres (`DATABASE_URL`).
+Run the API and the SPA in two terminals:
 
 ```bash
-cd farplane-backend
-go run ./cmd/farplane
+make backend   # http://localhost:8080
+make web       # http://localhost:3000
 ```
 
-Or from the repo root:
-
-```bash
-make backend
-# or: mise run backend
-```
-
-Smoke checks:
-
-- `GET http://localhost:8080/health` → `{"status":"ok"}` (liveness)
-- `GET http://localhost:8080/ready` → `{"status":"ok","database":"up"}` (readiness)
-- `GET http://localhost:8080/api/v1/hello` → `{"message":"farplane"}`
-
-CORS allows the SPA origin `http://localhost:3000`.
-
-### 2. Client UI (`farplane-web`)
-
-Default dev server: `http://localhost:3000`.
-
-```bash
-cd farplane-web
-bun install
-bun run dev
-```
-
-Or from the repo root:
-
-```bash
-mise run install-web
-mise run web
-```
-
-Useful scripts:
-
-- `bun run dev` — Rsbuild dev server
-- `bun run build` — production static build into `farplane-web/dist`
-- `bun run preview` — preview the production build
-
-### Expected local setup
-
-1. Ensure Postgres databases exist (`make db-create`) and apply migrations (`make migrate-up`).
-2. Start the Go API on port **8080** (`make backend`).
-3. Start the SPA on port **3000** (`make web`).
-4. Open `http://localhost:3000` in the browser.
-5. The SPA will call the Go API at `http://localhost:8080` (wire this in later stages).
+Open `http://localhost:3000`. The SPA talks to the API at
+`http://localhost:8080`.
