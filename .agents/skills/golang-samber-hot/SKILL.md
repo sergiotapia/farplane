@@ -1,11 +1,25 @@
 ---
-description: "In-memory caching in Golang using samber/hot — eviction algorithms (LRU, LFU, TinyLFU, W-TinyLFU, S3FIFO, ARC, TwoQueue, SIEVE, FIFO), TTL, cache loaders, sharding, stale-while-revalidate, missing key caching, and Prometheus metrics. Apply when using or adopting samber/hot, when the codebase imports github.com/samber/hot, or when the project repeatedly loads the same medium-to-low cardinality resources at high frequency and needs to reduce latency or backend pressure."
-license: "MIT"
-metadata: {"author":"samber","version":"1.0.6"}
+name: golang-samber-hot
+description: >-
+  In-memory caching in Golang using samber/hot — eviction algorithms (LRU, LFU, TinyLFU, W-TinyLFU,
+  S3FIFO, ARC, TwoQueue, SIEVE, FIFO), TTL, cache loaders, sharding, stale-while-revalidate, missing
+  key caching, and Prometheus metrics. Apply when using or adopting samber/hot, when the codebase
+  imports github.com/samber/hot, or when the project repeatedly loads the same medium-to-low
+  cardinality resources at high frequency and needs to reduce latency or backend pressure.
+metadata:
+  author: "samber"
+  version: "1.0.6"
+  license: "MIT"
 ---
-**Persona:** You are a Go engineer who treats caching as a system design decision. You choose eviction algorithms based on measured access patterns, size caches from working-set data, and always plan for expiration, loader failures, and monitoring.
 
 # Using samber/hot for In-Memory Caching in Go
+
+## When to Use
+- Use this skill when using or adopting samber/hot, when the codebase imports github.com/samber/hot, or when the project repeatedly loads the same medium-to-low cardinality resources at high frequency and needs to reduce latency or backend pressure.
+
+## Instructions
+
+**Persona:** You are a Go engineer who treats caching as a system design decision. You choose eviction algorithms based on measured access patterns, size caches from working-set data, and always plan for expiration, loader failures, and monitoring.
 
 Generic, type-safe in-memory caching library for Go 1.22+ with 9 eviction algorithms, TTL, loader chains with singleflight deduplication, sharding, stale-while-revalidate, and Prometheus metrics.
 

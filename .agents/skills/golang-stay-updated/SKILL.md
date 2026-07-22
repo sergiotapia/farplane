@@ -1,11 +1,23 @@
 ---
-description: "Provides resources to stay updated with Golang news, communities and people to follow. Use when seeking Go learning resources, discovering new libraries, finding community channels, or keeping up with Go language changes and releases."
-license: "MIT"
-metadata: {"author":"samber","version":"1.2.4"}
+name: golang-stay-updated
+description: >-
+  Provides resources to stay updated with Golang news, communities and people to follow. Use when
+  seeking Go learning resources, discovering new libraries, finding community channels, or keeping
+  up with Go language changes and releases.
+metadata:
+  author: "samber"
+  version: "1.2.4"
+  license: "MIT"
 ---
-<!-- markdownlint-disable table-column-style -->
 
 # Stay Updated with Go
+
+## When to Use
+- Use this skill when seeking Go learning resources, discovering new libraries, finding community channels, or keeping up with Go language changes and releases.
+
+## Instructions
+
+<!-- markdownlint-disable table-column-style -->
 
 A curated guide to keeping your finger on the pulse of the Go ecosystem.
 

@@ -1,8 +1,26 @@
 ---
-description: "Golang CLI application development. Use when building, modifying, or reviewing a Go CLI tool — especially for command structure, flag handling, configuration layering, version embedding, exit codes, I/O patterns, signal handling, shell completion, argument validation, and CLI unit testing. Also triggers when code uses cobra, viper, or urfave/cli. For cobra-specific APIs → See `samber/cc-skills-golang@golang-spf13-cobra` skill; for viper configuration layering → See `samber/cc-skills-golang@golang-spf13-viper` skill."
-license: "MIT"
-metadata: {"author":"samber","version":"1.2.0"}
+name: golang-cli
+description: >-
+  Golang CLI application development. Use when building, modifying, or reviewing a Go CLI tool —
+  especially for command structure, flag handling, configuration layering, version embedding, exit
+  codes, I/O patterns, signal handling, shell completion, argument validation, and CLI unit testing.
+  Also triggers when code uses cobra, viper, or urfave/cli. For cobra-specific APIs → See
+  `samber/cc-skills-golang@golang-spf13-cobra` skill; for viper configuration layering → See
+  `samber/cc-skills-golang@golang-spf13-viper` skill.
+metadata:
+  author: "samber"
+  version: "1.2.0"
+  license: "MIT"
 ---
+
+# Go CLI Best Practices
+
+## When to Use
+- Use this skill when building, modifying, or reviewing a Go CLI tool — especially for command structure, flag handling, configuration layering, version embedding, exit codes, I/O patterns, signal handling, shell completion, argument validation, and CLI unit testing.
+- Use this skill when code uses cobra, viper, or urfave/cli.
+
+## Instructions
+
 **Persona:** You are a Go CLI engineer. You build tools that feel native to the Unix shell — composable, scriptable, and predictable under automation.
 
 **Modes:**
@@ -10,8 +28,6 @@ metadata: {"author":"samber","version":"1.2.0"}
 - **Build** — creating a new CLI from scratch: follow the project structure, root command setup, flag binding, and version embedding sections sequentially.
 - **Extend** — adding subcommands, flags, or completions to an existing CLI: read the current command tree first, then apply changes consistent with the existing structure.
 - **Review** — auditing an existing CLI for correctness: check the Common Mistakes table, verify `SilenceUsage`/`SilenceErrors`, flag-to-Viper binding, exit codes, and stdout/stderr discipline.
-
-# Go CLI Best Practices
 
 Use Cobra + Viper as the default stack for Go CLI applications. Cobra provides the command/subcommand/flag structure and Viper handles configuration from files, environment variables, and flags with automatic layering. This combination powers kubectl, docker, gh, hugo, and most production Go CLIs.
 

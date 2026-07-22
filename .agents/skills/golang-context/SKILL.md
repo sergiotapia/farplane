@@ -1,11 +1,26 @@
 ---
-description: "Idiomatic context.Context usage in Golang — propagation through API boundaries, cancellation, timeouts and deadlines, request-scoped values, context.WithoutCancel for background work outliving requests. Apply when designing context propagation across layers, debugging leaked or unexpired contexts, choosing between context.Background/TODO/WithoutCancel, or storing values in context. Not for code that merely accepts ctx as first parameter."
-license: "MIT"
-metadata: {"author":"samber","version":"1.2.1"}
+name: golang-context
+description: >-
+  Idiomatic context.Context usage in Golang — propagation through API boundaries, cancellation,
+  timeouts and deadlines, request-scoped values, context.WithoutCancel for background work outliving
+  requests. Apply when designing context propagation across layers, debugging leaked or unexpired
+  contexts, choosing between context.Background/TODO/WithoutCancel, or storing values in context.
+  Not for code that merely accepts ctx as first parameter.
+metadata:
+  author: "samber"
+  version: "1.2.1"
+  license: "MIT"
 ---
-> **Community default.** A company skill that explicitly supersedes `samber/cc-skills-golang@golang-context` skill takes precedence.
 
 # Go context.Context Best Practices
+
+## When to Use
+- Use this skill when designing context propagation across layers, debugging leaked or unexpired contexts, choosing between context.Background/TODO/WithoutCancel, or storing values in context.
+- Do not use this skill for code that merely accepts ctx as first parameter.
+
+## Instructions
+
+> **Community default.** A company skill that explicitly supersedes `samber/cc-skills-golang@golang-context` skill takes precedence.
 
 `context.Context` is Go's mechanism for propagating cancellation signals, deadlines, and request-scoped values across API boundaries and between goroutines. Think of it as the "session" of a request — it ties together every operation that belongs to the same unit of work.
 

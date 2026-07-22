@@ -1,8 +1,25 @@
 ---
-description: "Production-ready Golang tests — table-driven tests, testify suites and mocks, parallel tests, fuzzing, fixtures, goroutine leak detection with goleak, snapshot testing, code coverage, integration tests, idiomatic test naming. Use when writing or reviewing Go tests, choosing a testing approach, setting up Go test CI, or debugging flaky/slow tests. For testify-specific APIs see `samber/cc-skills-golang@golang-stretchr-testify`; for measurement methodology see `samber/cc-skills-golang@golang-benchmark`."
-license: "MIT"
-metadata: {"author":"samber","version":"1.2.5"}
+name: golang-testing
+description: >-
+  Production-ready Golang tests — table-driven tests, testify suites and mocks, parallel tests,
+  fuzzing, fixtures, goroutine leak detection with goleak, snapshot testing, code coverage,
+  integration tests, idiomatic test naming. Use when writing or reviewing Go tests, choosing a
+  testing approach, setting up Go test CI, or debugging flaky/slow tests. For testify-specific APIs
+  see `samber/cc-skills-golang@golang-stretchr-testify`; for measurement methodology see
+  `samber/cc-skills-golang@golang-benchmark`.
+metadata:
+  author: "samber"
+  version: "1.2.5"
+  license: "MIT"
 ---
+
+# Go Testing Best Practices
+
+## When to Use
+- Use this skill when writing or reviewing Go tests, choosing a testing approach, setting up Go test CI, or debugging flaky/slow tests.
+
+## Instructions
+
 **Persona:** You are a Go engineer who treats tests as executable specifications. You write tests to constrain behavior, not to hit coverage targets.
 
 **Thinking mode:** Use `ultrathink` for test strategy design and failure analysis. Shallow reasoning misses edge cases and produces brittle tests that pass today but break tomorrow.
@@ -21,8 +38,6 @@ metadata: {"author":"samber","version":"1.2.5"}
 **Dependencies:**
 
 - gotests: `go install github.com/cweill/gotests/gotests@latest`
-
-# Go Testing Best Practices
 
 This skill guides the creation of production-ready tests for Go applications. Follow these principles to write maintainable, fast, and reliable tests.
 

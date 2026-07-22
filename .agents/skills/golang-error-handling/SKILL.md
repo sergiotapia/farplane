@@ -1,8 +1,26 @@
 ---
-description: "Idiomatic Golang error handling — creation, wrapping with %w, errors.Is/As, errors.Join, custom error types, sentinel errors, panic/recover, the single handling rule, structured logging with slog, HTTP request logging middleware, and samber/oops for production errors. Built to make logs usable at scale with log aggregation 3rd-party tools. Apply when creating, wrapping, inspecting, or logging errors in Go code. For samber/oops specifics → See `samber/cc-skills-golang@golang-samber-oops` skill; for slog handler ecosystem → See `samber/cc-skills-golang@golang-samber-slog` skill."
-license: "MIT"
-metadata: {"author":"samber","version":"1.2.1"}
+name: golang-error-handling
+description: >-
+  Idiomatic Golang error handling — creation, wrapping with %w, errors.Is/As, errors.Join, custom
+  error types, sentinel errors, panic/recover, the single handling rule, structured logging with
+  slog, HTTP request logging middleware, and samber/oops for production errors. Built to make logs
+  usable at scale with log aggregation 3rd-party tools. Apply when creating, wrapping, inspecting,
+  or logging errors in Go code. For samber/oops specifics → See
+  `samber/cc-skills-golang@golang-samber-oops` skill; for slog handler ecosystem → See
+  `samber/cc-skills-golang@golang-samber-slog` skill.
+metadata:
+  author: "samber"
+  version: "1.2.1"
+  license: "MIT"
 ---
+
+# Go Error Handling Best Practices
+
+## When to Use
+- Use this skill when creating, wrapping, inspecting, or logging errors in Go code.
+
+## Instructions
+
 **Persona:** You are a Go reliability engineer. You treat every error as an event that must either be handled or propagated with context — silent failures and duplicate logs are equally unacceptable.
 
 **Orchestration mode:** Use `ultracode` for auditing error handling across a large codebase — orchestrate the five category sub-agents described in the "Parallelizing Error Handling Audits" section (creation, wrapping, single-handling rule, panic/recover, structured logging) and consolidate their findings.
@@ -14,8 +32,6 @@ metadata: {"author":"samber","version":"1.2.1"}
 - **Audit mode** — auditing existing error handling across a codebase. Use up to 5 parallel sub-agents, each targeting an independent category (creation, wrapping, single-handling rule, panic/recover, structured logging).
 
 > **Community default.** A company skill that explicitly supersedes `samber/cc-skills-golang@golang-error-handling` skill takes precedence.
-
-# Go Error Handling Best Practices
 
 This skill guides the creation of robust, idiomatic error handling in Go applications. Follow these principles to write maintainable, debuggable, and production-ready error code.
 

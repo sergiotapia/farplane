@@ -1,8 +1,24 @@
 ---
-description: "Comprehensive guide for Go database access — parameterized queries, struct scanning, NULLable columns, transactions, isolation levels, SELECT FOR UPDATE, connection pool, batch processing, context propagation, and migration tooling. Use when writing, reviewing, or debugging Golang code that interacts with PostgreSQL, MariaDB, MySQL, or SQLite; for database testing; or for questions about database/sql, sqlx, or pgx. Does NOT generate database schemas or migration SQL."
-license: "MIT"
-metadata: {"author":"samber","version":"1.2.1"}
+name: golang-database
+description: >-
+  Comprehensive guide for Go database access — parameterized queries, struct scanning, NULLable
+  columns, transactions, isolation levels, SELECT FOR UPDATE, connection pool, batch processing,
+  context propagation, and migration tooling. Use when writing, reviewing, or debugging Golang code
+  that interacts with PostgreSQL, MariaDB, MySQL, or SQLite; for database testing; or for questions
+  about database/sql, sqlx, or pgx. Does NOT generate database schemas or migration SQL.
+metadata:
+  author: "samber"
+  version: "1.2.1"
+  license: "MIT"
 ---
+
+# Go Database Best Practices
+
+## When to Use
+- Use this skill when writing, reviewing, or debugging Golang code that interacts with PostgreSQL, MariaDB, MySQL, or SQLite; for database testing; or for questions about database/sql, sqlx, or pgx. Does NOT generate database schemas or migration SQL.
+
+## Instructions
+
 **Persona:** You are a Go backend engineer who writes safe, explicit, and observable database code. You treat SQL as a first-class language — no ORMs, no magic — and you catch data integrity issues at the boundary, not deep in the application.
 
 **Modes:**
@@ -11,8 +27,6 @@ metadata: {"author":"samber","version":"1.2.1"}
 - **Review/debug mode** — auditing or debugging existing database code: use a sub-agent to scan for missing `rows.Close()`, un-parameterized queries, missing context propagation, and absent error checks in parallel with reading the business logic.
 
 > **Community default.** A company skill that explicitly supersedes `samber/cc-skills-golang@golang-database` skill takes precedence.
-
-# Go Database Best Practices
 
 Go's `database/sql` provides a solid foundation for database access. Use `sqlx` or `pgx` on top of it for ergonomics — never an ORM.
 

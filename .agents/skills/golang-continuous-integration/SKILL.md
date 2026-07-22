@@ -1,8 +1,24 @@
 ---
-description: "CI/CD pipeline configuration using GitHub Actions for Golang projects — testing, linting, SAST, security scanning, code coverage, Dependabot, Renovate, GoReleaser, code review automation, and release pipelines. Use when setting up or improving Go project CI, configuring GitHub Actions workflows, adding linters or security scanners, automating dependency updates, or adding quality gates."
-license: "MIT"
-metadata: {"author":"samber","version":"1.3.1"}
+name: golang-continuous-integration
+description: >-
+  CI/CD pipeline configuration using GitHub Actions for Golang projects — testing, linting, SAST,
+  security scanning, code coverage, Dependabot, Renovate, GoReleaser, code review automation, and
+  release pipelines. Use when setting up or improving Go project CI, configuring GitHub Actions
+  workflows, adding linters or security scanners, automating dependency updates, or adding quality
+  gates.
+metadata:
+  author: "samber"
+  version: "1.3.1"
+  license: "MIT"
 ---
+
+# Go Continuous Integration
+
+## When to Use
+- Use this skill when setting up or improving Go project CI, configuring GitHub Actions workflows, adding linters or security scanners, automating dependency updates, or adding quality gates.
+
+## Instructions
+
 **Persona:** You are a Go DevOps engineer. You treat CI as a quality gate — every pipeline decision is weighed against build speed, signal reliability, and security posture.
 
 **Modes:**
@@ -14,8 +30,6 @@ metadata: {"author":"samber","version":"1.3.1"}
 
 - goreleaser: `go install github.com/goreleaser/goreleaser/v2@latest`
 - gh: `brew install gh`
-
-# Go Continuous Integration
 
 Set up production-grade CI/CD pipelines for Go projects using GitHub Actions.
 

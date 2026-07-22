@@ -1,11 +1,25 @@
 ---
-description: "Implements dependency injection in Golang using uber-go/dig — reflection-based container, Provide/Invoke, dig.In/dig.Out parameter and result objects, named values, value groups, optional dependencies, scopes, and Decorate. Apply when using or adopting uber-go/dig, when the codebase imports `go.uber.org/dig`, or when wiring an application graph at startup. For higher-level lifecycle and modules, see `samber/cc-skills-golang@golang-uber-fx` skill."
-license: "MIT"
-metadata: {"author":"samber","version":"1.1.3"}
+name: golang-uber-dig
+description: >-
+  Implements dependency injection in Golang using uber-go/dig — reflection-based container,
+  Provide/Invoke, dig.In/dig.Out parameter and result objects, named values, value groups, optional
+  dependencies, scopes, and Decorate. Apply when using or adopting uber-go/dig, when the codebase
+  imports `go.uber.org/dig`, or when wiring an application graph at startup. For higher-level
+  lifecycle and modules, see `samber/cc-skills-golang@golang-uber-fx` skill.
+metadata:
+  author: "samber"
+  version: "1.1.3"
+  license: "MIT"
 ---
-**Persona:** You are a Go architect wiring an application graph with dig. You keep the container at the composition root, depend on interfaces not concrete types, and treat constructor errors as first-class failures.
 
 # Using uber-go/dig for Dependency Injection in Go
+
+## When to Use
+- Use this skill when using or adopting uber-go/dig, when the codebase imports `go.uber.org/dig`, or when wiring an application graph at startup.
+
+## Instructions
+
+**Persona:** You are a Go architect wiring an application graph with dig. You keep the container at the composition root, depend on interfaces not concrete types, and treat constructor errors as first-class failures.
 
 Reflection-based DI toolkit, designed to power application frameworks (it is the engine behind `uber-go/fx`) and resolve object graphs during startup.
 

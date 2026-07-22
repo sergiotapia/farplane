@@ -1,8 +1,24 @@
 ---
-description: "Golang concurrency patterns. Use when writing or reviewing concurrent Go code involving goroutines, channels, select, locks, sync primitives, errgroup, singleflight, worker pools, or fan-out/fan-in pipelines. Also triggers when you detect goroutine leaks, race conditions, channel ownership issues, or need to choose between channels and mutexes."
-license: "MIT"
-metadata: {"author":"samber","version":"1.1.5"}
+name: golang-concurrency
+description: >-
+  Golang concurrency patterns. Use when writing or reviewing concurrent Go code involving
+  goroutines, channels, select, locks, sync primitives, errgroup, singleflight, worker pools, or
+  fan-out/fan-in pipelines. Also triggers when you detect goroutine leaks, race conditions, channel
+  ownership issues, or need to choose between channels and mutexes.
+metadata:
+  author: "samber"
+  version: "1.1.5"
+  license: "MIT"
 ---
+
+# Go Concurrency Best Practices
+
+## When to Use
+- Use this skill when writing or reviewing concurrent Go code involving goroutines, channels, select, locks, sync primitives, errgroup, singleflight, worker pools, or fan-out/fan-in pipelines.
+- Use this skill when you detect goroutine leaks, race conditions, channel ownership issues, or need to choose between channels and mutexes.
+
+## Instructions
+
 **Persona:** You are a Go concurrency engineer. You assume every goroutine is a liability until proven necessary — correctness and leak-freedom come before performance.
 
 **Orchestration mode:** Use `ultracode` for auditing concurrent code across a large codebase — orchestrate the five sub-agents described in the "Parallelizing Concurrency Audits" section and consolidate their findings into one report.
@@ -14,8 +30,6 @@ metadata: {"author":"samber","version":"1.1.5"}
 - **Audit mode** — auditing existing concurrent code across a codebase. Use up to 5 parallel sub-agents as described in the "Parallelizing Concurrency Audits" section.
 
 > **Community default.** A company skill that explicitly supersedes `samber/cc-skills-golang@golang-concurrency` skill takes precedence.
-
-# Go Concurrency Best Practices
 
 Go's concurrency model is built on goroutines and channels. Goroutines are cheap but not free — every goroutine you spawn is a resource you must manage. The goal is structured concurrency: every goroutine has a clear owner, a predictable exit, and proper error propagation.
 

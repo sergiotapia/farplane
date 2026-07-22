@@ -1,8 +1,24 @@
 ---
-description: "Security best practices and vulnerability prevention for Golang. Covers injection (SQL, command, XSS), cryptography, filesystem safety, network security, cookies, secrets management, memory safety, and logging. Apply when writing, reviewing, or auditing Go code for security, or when working on any risky code involving crypto, I/O, secrets management, user input handling, or authentication. Includes configuration of security tools."
-license: "MIT"
-metadata: {"author":"samber","version":"1.1.10"}
+name: golang-security
+description: >-
+  Security best practices and vulnerability prevention for Golang. Covers injection (SQL, command,
+  XSS), cryptography, filesystem safety, network security, cookies, secrets management, memory
+  safety, and logging. Apply when writing, reviewing, or auditing Go code for security, or when
+  working on any risky code involving crypto, I/O, secrets management, user input handling, or
+  authentication. Includes configuration of security tools.
+metadata:
+  author: "samber"
+  version: "1.1.10"
+  license: "MIT"
 ---
+
+# Go Security
+
+## When to Use
+- Use this skill when writing, reviewing, or auditing Go code for security, or when working on any risky code involving crypto, I/O, secrets management, user input handling, or authentication. Includes configuration of security tools.
+
+## Instructions
+
 **Persona:** You are a senior Go security engineer. You apply security thinking both when auditing existing code and when writing new code — threats are easier to prevent than to fix.
 
 **Thinking mode:** Use `ultrathink` for security audits and vulnerability analysis. Security bugs hide in subtle interactions — deep reasoning catches what surface-level review misses.
@@ -18,8 +34,6 @@ metadata: {"author":"samber","version":"1.1.10"}
 **Dependencies:**
 
 - govulncheck: `go install golang.org/x/vuln/cmd/govulncheck@latest`
-
-# Go Security
 
 ## Overview
 

@@ -1,8 +1,31 @@
 ---
-description: "Golang refactoring — the safe, at-scale process for restructuring existing Go code: a coverage-adaptive safety net, tool-driven behavior-preserving transforms (gopls Rename/Inline/Extract, `gofmt -r`, `eg`, `gopatch`, `go/analysis` fixers), the Fowler catalog mapped to Go, breaking import cycles, moving types across packages, and a human-in-the-loop workflow of small stacked PRs on a refactoring branch. Apply when code is hard to maintain, a function/type has grown too large, a code smell needs fixing, adding a feature is blocked by the current structure, or the user asks to clean up, refactor, or improve Go code — also for renaming at scale, extracting functions/interfaces, moving code between packages, splitting packages, or planning a multi-step refactor. Target styles owned elsewhere → See `samber/cc-skills-golang@golang-naming` (renames), `@golang-project-layout` (splits), `@golang-modernize` (idioms), `@golang-code-style` (control flow), `@golang-design-patterns` (patterns/DI)."
-license: "MIT"
-metadata: {"author":"samber","version":"1.0.0"}
+name: golang-refactoring
+description: >-
+  Golang refactoring — the safe, at-scale process for restructuring existing Go code: a
+  coverage-adaptive safety net, tool-driven behavior-preserving transforms (gopls
+  Rename/Inline/Extract, `gofmt -r`, `eg`, `gopatch`, `go/analysis` fixers), the Fowler catalog
+  mapped to Go, breaking import cycles, moving types across packages, and a human-in-the-loop
+  workflow of small stacked PRs on a refactoring branch. Apply when code is hard to maintain, a
+  function/type has grown too large, a code smell needs fixing, adding a feature is blocked by the
+  current structure, or the user asks to clean up, refactor, or improve Go code — also for renaming
+  at scale, extracting functions/interfaces, moving code between packages, splitting packages, or
+  planning a multi-step refactor. Target styles owned elsewhere → See
+  `samber/cc-skills-golang@golang-naming` (renames), `@golang-project-layout` (splits),
+  `@golang-modernize` (idioms), `@golang-code-style` (control flow), `@golang-design-patterns`
+  (patterns/DI).
+metadata:
+  author: "samber"
+  version: "1.0.0"
+  license: "MIT"
 ---
+
+# Go Refactoring — Safe Change at Scale
+
+## When to Use
+- Use this skill when code is hard to maintain, a function/type has grown too large, a code smell needs fixing, adding a feature is blocked by the current structure, or the user asks to clean up, refactor, or improve Go code — also for renaming at scale, extracting functions/interfaces, moving code between packages, splitting packages, or planning a multi-step refactor. Target styles owned elsewhere → See `samber/cc-skills-golang@golang-naming` (renames), `@golang-project-layout` (splits), `@golang-modernize` (idioms), `@golang-code-style` (control flow), `@golang-design-patterns` (patterns/DI).
+
+## Instructions
+
 > **Community default.** A company skill that explicitly supersedes `samber/cc-skills-golang@golang-refactoring` skill takes precedence.
 
 **Persona:** You are a Go refactoring engineer. You never change structure and behavior in the same step — you keep a green test net, prefer behavior-preserving tools over hand-edits, and land changes as small, reviewable PRs.
@@ -19,8 +42,6 @@ metadata: {"author":"samber","version":"1.0.0"}
 - **Review mode** — reviewing a refactoring PR: verify structural/behavioral separation and behavior preservation before approving.
 
 **Dependencies:** `gopls` (primary actuator) — `go install golang.org/x/tools/gopls@latest`. Optional: `golangci-lint`, `benchstat`, `deadcode`, `eg`, `gopatch`. Full gopls setup and MCP registration → See `samber/cc-skills-golang@golang-gopls` skill — this is the only place this skill explains how to get gopls; every other reference to it in this skill assumes it's already installed.
-
-# Go Refactoring — Safe Change at Scale
 
 - Refactoring (Fowler) is changing code's internal structure to make it easier to understand or cheaper to modify, **without changing observable behavior**.
 - Go tooling can prove several transforms are behavior-preserving _by construction_ — e.g. gopls refuses a Rename rather than risk a broken build.

@@ -1,8 +1,27 @@
 ---
-description: "Troubleshoot Golang programs systematically - find and fix the root cause. Use when encountering bugs, crashes, deadlocks, or unexpected behavior in Go code. Covers debugging methodology, common Go pitfalls, test-driven debugging, pprof setup and capture, Delve debugger, race detection, GODEBUG tracing, and production debugging. Start here for any 'something is wrong' situation. Not for interpreting profiles or benchmarking (→ See `samber/cc-skills-golang@golang-benchmark` skill) or applying optimization patterns (→ See `samber/cc-skills-golang@golang-performance` skill)."
-license: "MIT"
-metadata: {"author":"samber","version":"1.2.3"}
+name: golang-troubleshooting
+description: >-
+  Troubleshoot Golang programs systematically - find and fix the root cause. Use when encountering
+  bugs, crashes, deadlocks, or unexpected behavior in Go code. Covers debugging methodology, common
+  Go pitfalls, test-driven debugging, pprof setup and capture, Delve debugger, race detection,
+  GODEBUG tracing, and production debugging. Start here for any 'something is wrong' situation. Not
+  for interpreting profiles or benchmarking (→ See `samber/cc-skills-golang@golang-benchmark` skill)
+  or applying optimization patterns (→ See `samber/cc-skills-golang@golang-performance` skill).
+metadata:
+  author: "samber"
+  version: "1.2.3"
+  license: "MIT"
 ---
+
+# Go Troubleshooting Guide
+
+## When to Use
+- Use this skill when encountering bugs, crashes, deadlocks, or unexpected behavior in Go code.
+- This skill covers debugging methodology, common Go pitfalls, test-driven debugging, pprof setup and capture, Delve debugger, race detection, GODEBUG tracing, and production debugging. Start here for any 'something is wrong' situation.
+- Do not use this skill for interpreting profiles or benchmarking (→ See `samber/cc-skills-golang@golang-benchmark` skill) or applying optimization patterns (→ See `samber/cc-skills-golang@golang-performance` skill).
+
+## Instructions
+
 **Persona:** You are a Go systems debugger. You follow evidence, not intuition — instrument, reproduce, and trace root causes systematically.
 
 **Thinking mode:** Use `ultrathink` for debugging and root cause analysis. Rushed reasoning leads to symptom fixes — deep thinking finds the actual root cause.
@@ -17,8 +36,6 @@ metadata: {"author":"samber","version":"1.2.3"}
 **Dependencies:**
 
 - dlv: `go install github.com/go-delve/delve/cmd/dlv@latest`
-
-# Go Troubleshooting Guide
 
 **NO FIXES WITHOUT ROOT CAUSE INVESTIGATION FIRST.** Symptom fixes create new bugs and waste time. This process applies ESPECIALLY under time pressure — rushing leads to cascading failures that take longer to resolve.
 

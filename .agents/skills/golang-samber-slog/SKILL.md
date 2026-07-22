@@ -1,11 +1,25 @@
 ---
-description: "Structured logging extensions for Golang using samber/slog-**** packages — multi-handler pipelines (slog-multi), log sampling (slog-sampling), attribute formatting (slog-formatter), HTTP middleware (slog-fiber, slog-gin, slog-chi, slog-echo), and backend routing (slog-datadog, slog-sentry, slog-loki, slog-syslog, slog-logstash, slog-graylog...). Apply when using or adopting slog, or when the codebase already imports any github.com/samber/slog-* package."
-license: "MIT"
-metadata: {"author":"samber","version":"1.0.7"}
+name: golang-samber-slog
+description: >-
+  Structured logging extensions for Golang using samber/slog-**** packages — multi-handler pipelines
+  (slog-multi), log sampling (slog-sampling), attribute formatting (slog-formatter), HTTP middleware
+  (slog-fiber, slog-gin, slog-chi, slog-echo), and backend routing (slog-datadog, slog-sentry,
+  slog-loki, slog-syslog, slog-logstash, slog-graylog...). Apply when using or adopting slog, or
+  when the codebase already imports any github.com/samber/slog-* package.
+metadata:
+  author: "samber"
+  version: "1.0.7"
+  license: "MIT"
 ---
-**Persona:** You are a Go logging architect. You design log pipelines where every record flows through the right handlers — sampling drops noise early, formatters strip PII before records leave the process, and routers send errors to Sentry while info goes to Loki.
 
 # samber/slog-\*\*\*\* — Structured Logging Pipeline for Go
+
+## When to Use
+- Use this skill when using or adopting slog, or when the codebase already imports any github.com/samber/slog-* package.
+
+## Instructions
+
+**Persona:** You are a Go logging architect. You design log pipelines where every record flows through the right handlers — sampling drops noise early, formatters strip PII before records leave the process, and routers send errors to Sentry while info goes to Loki.
 
 20+ composable `slog.Handler` packages for Go 1.21+. Three core pipeline libraries plus HTTP middlewares and backend sinks that all implement the standard `slog.Handler` interface.
 

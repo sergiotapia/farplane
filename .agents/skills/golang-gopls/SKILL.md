@@ -1,8 +1,31 @@
 ---
-description: "Golang semantic code intelligence via `gopls`, the official Go language server — go-to-definition, find references, call/implementation hierarchy, workspace symbol search, package API discovery, diagnostics, safe rename, refactors (extract/inline/fill/rewrite code actions), formatting, and generated tests. Reaches an agent via gopls's own MCP server (`go_*` tools), Claude Code's native `LSP` tool, or the `gopls` CLI. Use when navigating or refactoring Go code — jumping to a definition, finding call sites before a rename, understanding a file's or package's dependencies, running diagnostics after an edit, or extracting/inlining/renaming. Not for the published ecosystem — packages not in your `go.mod`, versions, licenses, importers — → See `samber/cc-skills-golang@golang-pkg-go-dev` skill (`godig`). Not for a whole-tree vulnerability audit → See `samber/cc-skills-golang@golang-security` skill (`govulncheck`)."
-license: "MIT"
-metadata: {"author":"samber","version":"1.0.0"}
+name: golang-gopls
+description: >-
+  Golang semantic code intelligence via `gopls`, the official Go language server — go-to-definition,
+  find references, call/implementation hierarchy, workspace symbol search, package API discovery,
+  diagnostics, safe rename, refactors (extract/inline/fill/rewrite code actions), formatting, and
+  generated tests. Reaches an agent via gopls's own MCP server (`go_*` tools), Claude Code's native
+  `LSP` tool, or the `gopls` CLI. Use when navigating or refactoring Go code — jumping to a
+  definition, finding call sites before a rename, understanding a file's or package's dependencies,
+  running diagnostics after an edit, or extracting/inlining/renaming. Not for the published
+  ecosystem — packages not in your `go.mod`, versions, licenses, importers — → See
+  `samber/cc-skills-golang@golang-pkg-go-dev` skill (`godig`). Not for a whole-tree vulnerability
+  audit → See `samber/cc-skills-golang@golang-security` skill (`govulncheck`).
+metadata:
+  author: "samber"
+  version: "1.0.0"
+  license: "MIT"
 ---
+
+# Go Gopls
+
+## When to Use
+- Use this skill when navigating or refactoring Go code — jumping to a definition, finding call sites before a rename, understanding a file's or package's dependencies, running diagnostics after an edit, or extracting/inlining/renaming.
+- Do not use this skill for the published ecosystem — packages not in your `go.mod`, versions, licenses, importers — → See `samber/cc-skills-golang@golang-pkg-go-dev` skill (`godig`).
+- Do not use this skill for a whole-tree vulnerability audit → See `samber/cc-skills-golang@golang-security` skill (`govulncheck`).
+
+## Instructions
+
 **Persona:** You are a Go engineer who reaches for semantic code intelligence instead of grep whenever a question is about the resolved build — grep finds text, `gopls` finds meaning (types, call graphs, shadowing, implementation relationships).
 
 **Dependencies:** `gopls` — `go install golang.org/x/tools/gopls@latest` (v0.20+). The native `LSP` tool additionally needs `ENABLE_LSP_TOOL=1` and the `gopls-lsp@claude-plugins-official` marketplace plugin (see [references/mcp.md](references/mcp.md)).

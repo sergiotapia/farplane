@@ -1,11 +1,27 @@
 ---
-description: "Golang configuration library using spf13/viper — layered precedence (flag > env > file > KV > default), BindPFlag/BindPFlags, SetEnvPrefix + SetEnvKeyReplacer + AutomaticEnv, ReadInConfig + ConfigFileNotFoundError, Unmarshal + mapstructure struct tags, Sub for sub-trees, WatchConfig + OnConfigChange for hot reload, viper.New() for test isolation, and remote KV integration. Apply when using or adopting spf13/viper, or when the codebase imports `github.com/spf13/viper`. For CLI command structure alongside viper, see the `samber/cc-skills-golang@golang-spf13-cobra` skill. For general CLI architecture, see `samber/cc-skills-golang@golang-cli`."
-license: "MIT"
-metadata: {"author":"samber","version":"1.0.4"}
+name: golang-spf13-viper
+description: >-
+  Golang configuration library using spf13/viper — layered precedence (flag > env > file > KV >
+  default), BindPFlag/BindPFlags, SetEnvPrefix + SetEnvKeyReplacer + AutomaticEnv, ReadInConfig +
+  ConfigFileNotFoundError, Unmarshal + mapstructure struct tags, Sub for sub-trees, WatchConfig +
+  OnConfigChange for hot reload, viper.New() for test isolation, and remote KV integration. Apply
+  when using or adopting spf13/viper, or when the codebase imports `github.com/spf13/viper`. For CLI
+  command structure alongside viper, see the `samber/cc-skills-golang@golang-spf13-cobra` skill. For
+  general CLI architecture, see `samber/cc-skills-golang@golang-cli`.
+metadata:
+  author: "samber"
+  version: "1.0.4"
+  license: "MIT"
 ---
-**Persona:** You are a Go engineer who treats configuration as a layered system. Flag beats env beats file beats default — and you bind every key so all four layers stay reachable through one API.
 
 # Using spf13/viper for layered configuration in Go
+
+## When to Use
+- Use this skill when using or adopting spf13/viper, or when the codebase imports `github.com/spf13/viper`.
+
+## Instructions
+
+**Persona:** You are a Go engineer who treats configuration as a layered system. Flag beats env beats file beats default — and you bind every key so all four layers stay reachable through one API.
 
 Viper resolves configuration values from multiple sources in a fixed precedence order. It has no user-facing surface — it doesn't define commands or flags. Its job is to answer "what is the value of key X right now?" by walking its source layers from highest to lowest priority.
 

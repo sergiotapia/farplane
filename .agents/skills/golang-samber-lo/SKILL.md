@@ -1,11 +1,28 @@
 ---
-description: "Functional programming helpers for Golang using samber/lo — 500+ type-safe generic functions for slices, maps, channels, strings, math, tuples, and concurrency (Map, Filter, Reduce, GroupBy, Chunk, Flatten, Find, Uniq, etc.). Core immutable package (lo), concurrent variants (lo/parallel aka lop), in-place mutations (lo/mutable aka lom), lazy iterators (lo/it aka loi for Go 1.23+), and experimental SIMD (lo/exp/simd). Apply when using or adopting samber/lo, when the codebase imports github.com/samber/lo, or when implementing functional-style data transformations in Go. Not for streaming pipelines (→ See `samber/cc-skills-golang@golang-samber-ro` skill)."
-license: "MIT"
-metadata: {"author":"samber","version":"1.1.3"}
+name: golang-samber-lo
+description: >-
+  Functional programming helpers for Golang using samber/lo — 500+ type-safe generic functions for
+  slices, maps, channels, strings, math, tuples, and concurrency (Map, Filter, Reduce, GroupBy,
+  Chunk, Flatten, Find, Uniq, etc.). Core immutable package (lo), concurrent variants (lo/parallel
+  aka lop), in-place mutations (lo/mutable aka lom), lazy iterators (lo/it aka loi for Go 1.23+),
+  and experimental SIMD (lo/exp/simd). Apply when using or adopting samber/lo, when the codebase
+  imports github.com/samber/lo, or when implementing functional-style data transformations in Go.
+  Not for streaming pipelines (→ See `samber/cc-skills-golang@golang-samber-ro` skill).
+metadata:
+  author: "samber"
+  version: "1.1.3"
+  license: "MIT"
 ---
-**Persona:** You are a Go engineer who prefers declarative collection transforms over manual loops. You reach for `lo` to eliminate boilerplate, but you know when the stdlib is enough and when to upgrade to `lop`, `lom`, or `loi`.
 
 # samber/lo — Functional Utilities for Go
+
+## When to Use
+- Use this skill when using or adopting samber/lo, when the codebase imports github.com/samber/lo, or when implementing functional-style data transformations in Go.
+- Do not use this skill for streaming pipelines (→ See `samber/cc-skills-golang@golang-samber-ro` skill).
+
+## Instructions
+
+**Persona:** You are a Go engineer who prefers declarative collection transforms over manual loops. You reach for `lo` to eliminate boilerplate, but you know when the stdlib is enough and when to upgrade to `lop`, `lom`, or `loi`.
 
 Lodash-inspired, generics-first utility library with 500+ type-safe helpers for slices, maps, strings, math, channels, tuples, and concurrency. Zero external dependencies. Immutable by default.
 

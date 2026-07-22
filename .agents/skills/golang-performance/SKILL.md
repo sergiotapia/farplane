@@ -1,8 +1,28 @@
 ---
-description: "Golang performance optimization patterns and methodology - if X bottleneck, then apply Y. Covers allocation reduction, CPU efficiency, memory layout, GC tuning, pooling, caching, and hot-path optimization. Use when profiling or benchmarks have identified a bottleneck and you need the right optimization pattern to fix it. Also use when performing performance code review to suggest improvements or benchmarks that could help identify quick performance gains. Not for measurement methodology (→ See `samber/cc-skills-golang@golang-benchmark` skill) or debugging workflow (→ See `samber/cc-skills-golang@golang-troubleshooting` skill)."
-license: "MIT"
-metadata: {"author":"samber","version":"1.2.4"}
+name: golang-performance
+description: >-
+  Golang performance optimization patterns and methodology - if X bottleneck, then apply Y. Covers
+  allocation reduction, CPU efficiency, memory layout, GC tuning, pooling, caching, and hot-path
+  optimization. Use when profiling or benchmarks have identified a bottleneck and you need the right
+  optimization pattern to fix it. Also use when performing performance code review to suggest
+  improvements or benchmarks that could help identify quick performance gains. Not for measurement
+  methodology (→ See `samber/cc-skills-golang@golang-benchmark` skill) or debugging workflow (→ See
+  `samber/cc-skills-golang@golang-troubleshooting` skill).
+metadata:
+  author: "samber"
+  version: "1.2.4"
+  license: "MIT"
 ---
+
+# Go Performance Optimization
+
+## When to Use
+- Use this skill when profiling or benchmarks have identified a bottleneck and you need the right optimization pattern to fix it.
+- Use this skill when performing performance code review to suggest improvements or benchmarks that could help identify quick performance gains.
+- Do not use this skill for measurement methodology (→ See `samber/cc-skills-golang@golang-benchmark` skill) or debugging workflow (→ See `samber/cc-skills-golang@golang-troubleshooting` skill).
+
+## Instructions
+
 **Persona:** You are a Go performance engineer. You never optimize without profiling first — measure, hypothesize, change one thing, re-measure.
 
 **Thinking mode:** Use `ultrathink` for performance optimization. Shallow analysis misidentifies bottlenecks — deep reasoning ensures the right optimization is applied to the right problem.
@@ -18,8 +38,6 @@ metadata: {"author":"samber","version":"1.2.4"}
 **Dependencies:**
 
 - benchstat: `go install golang.org/x/perf/cmd/benchstat@latest`
-
-# Go Performance Optimization
 
 ## Core Philosophy
 

@@ -1,8 +1,23 @@
 ---
-description: "Provides gRPC usage guidelines, protobuf organization, and production-ready patterns for Golang microservices. Use when implementing, reviewing, or debugging gRPC servers/clients, writing proto files, setting up interceptors, handling gRPC errors with status codes, configuring TLS/mTLS, testing with bufconn, or working with streaming RPCs."
-license: "MIT"
-metadata: {"author":"samber","version":"1.1.7"}
+name: golang-grpc
+description: >-
+  Provides gRPC usage guidelines, protobuf organization, and production-ready patterns for Golang
+  microservices. Use when implementing, reviewing, or debugging gRPC servers/clients, writing proto
+  files, setting up interceptors, handling gRPC errors with status codes, configuring TLS/mTLS,
+  testing with bufconn, or working with streaming RPCs.
+metadata:
+  author: "samber"
+  version: "1.1.7"
+  license: "MIT"
 ---
+
+# Go gRPC Best Practices
+
+## When to Use
+- Use this skill when implementing, reviewing, or debugging gRPC servers/clients, writing proto files, setting up interceptors, handling gRPC errors with status codes, configuring TLS/mTLS, testing with bufconn, or working with streaming RPCs.
+
+## Instructions
+
 **Persona:** You are a Go distributed systems engineer. You design gRPC services for correctness and operability — proper status codes, deadlines, interceptors, and graceful shutdown matter as much as the happy path.
 
 **Modes:**
@@ -15,8 +30,6 @@ metadata: {"author":"samber","version":"1.1.7"}
 - protoc: `brew install protobuf`
 - protoc-gen-go: `go install google.golang.org/protobuf/cmd/protoc-gen-go@latest`
 - protoc-gen-go-grpc: `go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest`
-
-# Go gRPC Best Practices
 
 Treat gRPC as a pure transport layer — keep it separate from business logic. The official Go implementation is `google.golang.org/grpc`.
 

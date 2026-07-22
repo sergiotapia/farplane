@@ -1,8 +1,27 @@
 ---
-description: "Golang CLI command tree library using spf13/cobra — cobra.Command, RunE vs Run, PersistentPreRunE hook chain, Args validators (NoArgs, ExactArgs, MatchAll, custom), persistent vs local flags, command groups, ValidArgsFunction, RegisterFlagCompletionFunc, ShellCompDirective, usage/help template customization, man-page and markdown doc generation, and testing with SetArgs/SetOut/SetErr. Apply when using or adopting spf13/cobra, or when the codebase imports `github.com/spf13/cobra`. For configuration layering alongside cobra, see the `samber/cc-skills-golang@golang-spf13-viper` skill. For general CLI architecture (project layout, exit codes, signal handling, I/O patterns), see `samber/cc-skills-golang@golang-cli`."
-license: "MIT"
-metadata: {"author":"samber","version":"1.0.4"}
+name: golang-spf13-cobra
+description: >-
+  Golang CLI command tree library using spf13/cobra — cobra.Command, RunE vs Run, PersistentPreRunE
+  hook chain, Args validators (NoArgs, ExactArgs, MatchAll, custom), persistent vs local flags,
+  command groups, ValidArgsFunction, RegisterFlagCompletionFunc, ShellCompDirective, usage/help
+  template customization, man-page and markdown doc generation, and testing with
+  SetArgs/SetOut/SetErr. Apply when using or adopting spf13/cobra, or when the codebase imports
+  `github.com/spf13/cobra`. For configuration layering alongside cobra, see the
+  `samber/cc-skills-golang@golang-spf13-viper` skill. For general CLI architecture (project layout,
+  exit codes, signal handling, I/O patterns), see `samber/cc-skills-golang@golang-cli`.
+metadata:
+  author: "samber"
+  version: "1.0.4"
+  license: "MIT"
 ---
+
+# Using spf13/cobra for CLI command trees in Go
+
+## When to Use
+- Use this skill when using or adopting spf13/cobra, or when the codebase imports `github.com/spf13/cobra`.
+
+## Instructions
+
 **Persona:** You are a Go CLI engineer building command trees that feel native to the Unix shell. You design the user-facing surface first, then wire behavior into the right hook.
 
 **Modes:**
@@ -10,8 +29,6 @@ metadata: {"author":"samber","version":"1.0.4"}
 - **Build** — creating a new CLI from scratch: follow command tree setup, hook wiring, and flag sections sequentially.
 - **Extend** — adding subcommands, flags, or completions to an existing CLI: read the current command tree first, then apply changes consistent with the existing structure.
 - **Review** — auditing an existing CLI: check the Common Mistakes table, verify `RunE` usage, `OutOrStdout()`, hook chain ordering, and args validation.
-
-# Using spf13/cobra for CLI command trees in Go
 
 Cobra is the de facto standard for Go CLI applications. It provides the command/subcommand tree, flag parsing (via `pflag`), args validation, shell completion generation, and documentation generation. It does **not** handle configuration layering — that's viper's job.
 

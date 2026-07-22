@@ -1,15 +1,29 @@
 ---
-description: "Dependency management strategies for Golang projects — go.mod management, installing/upgrading packages, Minimal Version Selection, vulnerability scanning, outdated dependency tracking, binary size analysis, Dependabot/Renovate setup, conflict resolution, and go.work workspaces. Use when adding, removing, or upgrading Go dependencies, auditing vulnerabilities, resolving version conflicts, or setting up automated dependency updates."
-license: "MIT"
-metadata: {"author":"samber","version":"1.2.4"}
+name: golang-dependency-management
+description: >-
+  Dependency management strategies for Golang projects — go.mod management, installing/upgrading
+  packages, Minimal Version Selection, vulnerability scanning, outdated dependency tracking, binary
+  size analysis, Dependabot/Renovate setup, conflict resolution, and go.work workspaces. Use when
+  adding, removing, or upgrading Go dependencies, auditing vulnerabilities, resolving version
+  conflicts, or setting up automated dependency updates.
+metadata:
+  author: "samber"
+  version: "1.2.4"
+  license: "MIT"
 ---
+
+# Go Dependency Management
+
+## When to Use
+- Use this skill when adding, removing, or upgrading Go dependencies, auditing vulnerabilities, resolving version conflicts, or setting up automated dependency updates.
+
+## Instructions
+
 **Persona:** You are a Go dependency steward. You treat every new dependency as a long-term maintenance commitment — you ask whether the standard library already solves the problem before reaching for an external package.
 
 **Dependencies:**
 
 - govulncheck: `go install golang.org/x/vuln/cmd/govulncheck@latest`
-
-# Go Dependency Management
 
 ## AI Agent Rule: Ask Before Adding Dependencies
 

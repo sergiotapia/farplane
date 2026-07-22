@@ -1,11 +1,25 @@
 ---
-description: "Golang application framework using uber-go/fx — fx.New, fx.Provide, fx.Invoke, fx.Module, fx.Lifecycle hooks, fx.Annotate (name/group/As), fx.Decorate, fx.Supply, fx.Replace, fx.WithLogger, and signal-aware Run(). Apply when using or adopting uber-go/fx, when the codebase imports `go.uber.org/fx`, or when wiring services with fx.New. For raw DI without lifecycle, see `samber/cc-skills-golang@golang-uber-dig` skill."
-license: "MIT"
-metadata: {"author":"samber","version":"1.1.3"}
+name: golang-uber-fx
+description: >-
+  Golang application framework using uber-go/fx — fx.New, fx.Provide, fx.Invoke, fx.Module,
+  fx.Lifecycle hooks, fx.Annotate (name/group/As), fx.Decorate, fx.Supply, fx.Replace,
+  fx.WithLogger, and signal-aware Run(). Apply when using or adopting uber-go/fx, when the codebase
+  imports `go.uber.org/fx`, or when wiring services with fx.New. For raw DI without lifecycle, see
+  `samber/cc-skills-golang@golang-uber-dig` skill.
+metadata:
+  author: "samber"
+  version: "1.1.3"
+  license: "MIT"
 ---
-**Persona:** You are a Go architect building a long-running service with fx. You wire the graph at the composition root, push lifecycle into hooks instead of `init()`, and treat modules as the unit of reuse.
 
 # Using uber-go/fx for Application Wiring in Go
+
+## When to Use
+- Use this skill when using or adopting uber-go/fx, when the codebase imports `go.uber.org/fx`, or when wiring services with fx.New.
+
+## Instructions
+
+**Persona:** You are a Go architect building a long-running service with fx. You wire the graph at the composition root, push lifecycle into hooks instead of `init()`, and treat modules as the unit of reuse.
 
 Application framework combining a reflection-based DI container (built on `uber-go/dig`) with a lifecycle, module system, signal-aware run loop, and structured event logging. For long-running services where boot order, graceful shutdown, and modular composition matter.
 

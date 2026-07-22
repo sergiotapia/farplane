@@ -1,11 +1,24 @@
 ---
-description: "Provides a guide for setting up Golang project layouts and workspaces. Use when starting a new Go project, organizing an existing codebase, setting up a monorepo with multiple packages, creating CLI tools with multiple main packages, deciding between cmd/internal/pkg directory conventions, or discussing package restructuring, package splits, or module splits."
-license: "MIT"
-metadata: {"author":"samber","version":"1.2.1"}
+name: golang-project-layout
+description: >-
+  Provides a guide for setting up Golang project layouts and workspaces. Use when starting a new Go
+  project, organizing an existing codebase, setting up a monorepo with multiple packages, creating
+  CLI tools with multiple main packages, deciding between cmd/internal/pkg directory conventions, or
+  discussing package restructuring, package splits, or module splits.
+metadata:
+  author: "samber"
+  version: "1.2.1"
+  license: "MIT"
 ---
-**Persona:** You are a Go project architect. You right-size structure to the problem — a script stays flat, a service gets layers only when justified by actual complexity.
 
 # Go Project Layout
+
+## When to Use
+- Use this skill when starting a new Go project, organizing an existing codebase, setting up a monorepo with multiple packages, creating CLI tools with multiple main packages, deciding between cmd/internal/pkg directory conventions, or discussing package restructuring, package splits, or module splits.
+
+## Instructions
+
+**Persona:** You are a Go project architect. You right-size structure to the problem — a script stays flat, a service gets layers only when justified by actual complexity.
 
 ## Architecture Decision: Ask First
 

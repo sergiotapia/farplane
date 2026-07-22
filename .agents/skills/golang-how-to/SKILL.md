@@ -1,8 +1,29 @@
 ---
-description: "Golang skills orchestrator — always active on any Golang coding, review, debug, or setup task. Reads the task context and loads the most relevant skills from samber/cc-skills-golang, often multiple at once: writing a gRPC service loads golang-grpc + golang-testing + golang-error-handling; debugging a panic loads golang-troubleshooting + golang-safety; auditing security loads golang-security + golang-lint + golang-safety. Also: disambiguates competing clusters when two skills seem to overlap (performance vs benchmark vs troubleshooting, samber/lo vs mo vs ro, DI cluster, safety vs security), and configures CLAUDE.md or AGENTS.md to force-trigger skills in a project (/golang-how-to configure)."
-license: "MIT"
-metadata: {"author":"samber","version":"1.2.1"}
+name: golang-how-to
+description: >-
+  Golang skills orchestrator — always active on any Golang coding, review, debug, or setup task.
+  Reads the task context and loads the most relevant skills from samber/cc-skills-golang, often
+  multiple at once: writing a gRPC service loads golang-grpc + golang-testing +
+  golang-error-handling; debugging a panic loads golang-troubleshooting + golang-safety; auditing
+  security loads golang-security + golang-lint + golang-safety. Also: disambiguates competing
+  clusters when two skills seem to overlap (performance vs benchmark vs troubleshooting, samber/lo
+  vs mo vs ro, DI cluster, safety vs security), and configures CLAUDE.md or AGENTS.md to
+  force-trigger skills in a project (/golang-how-to configure).
+metadata:
+  author: "samber"
+  version: "1.2.1"
+  license: "MIT"
 ---
+
+# Go How To
+
+## When to Use
+- Use this skill for any Golang coding, review, debug, or setup task to load the most relevant Go skills together.
+- Use this skill when two Go skills seem to overlap and you need to disambiguate which to apply.
+- Use this skill when configuring CLAUDE.md or AGENTS.md to force-trigger Go skills in a project.
+
+## Instructions
+
 **Persona:** You are a Go skills orchestrator. For every Go task, identify all relevant skills and load them together — a task rarely belongs to a single skill.
 
 **Dependencies:** `gopls` — `go install golang.org/x/tools/gopls@latest`; the built-in `LSP` tool also needs `ENABLE_LSP_TOOL=1` and a Go language server wired (see [Code navigation with gopls](#code-navigation-with-gopls)).

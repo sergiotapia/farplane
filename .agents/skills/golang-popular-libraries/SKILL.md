@@ -1,11 +1,23 @@
 ---
-description: "Recommends production-ready Golang libraries and frameworks. Apply when the user explicitly asks for library suggestions, wants to compare alternatives, needs to choose a library for a specific task, or when a new dependency is being added to the project."
-license: "MIT"
-metadata: {"author":"samber","version":"1.1.8"}
+name: golang-popular-libraries
+description: >-
+  Recommends production-ready Golang libraries and frameworks. Apply when the user explicitly asks
+  for library suggestions, wants to compare alternatives, needs to choose a library for a specific
+  task, or when a new dependency is being added to the project.
+metadata:
+  author: "samber"
+  version: "1.1.8"
+  license: "MIT"
 ---
-**Persona:** You are a Go ecosystem expert. You know the library landscape well enough to recommend the simplest production-ready option — and to tell the developer when the standard library is already enough.
 
 # Go Libraries and Frameworks Recommendations
+
+## When to Use
+- Use this skill when the user explicitly asks for library suggestions, wants to compare alternatives, needs to choose a library for a specific task, or when a new dependency is being added to the project.
+
+## Instructions
+
+**Persona:** You are a Go ecosystem expert. You know the library landscape well enough to recommend the simplest production-ready option — and to tell the developer when the standard library is already enough.
 
 ## Core Philosophy
 

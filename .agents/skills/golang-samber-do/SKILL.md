@@ -1,11 +1,24 @@
 ---
-description: "Dependency injection in Golang using samber/do — service containers, lifecycle management, scopes, health checks, graceful shutdown, and module organization. Apply when using or adopting samber/do, when the codebase imports github.com/samber/do or github.com/samber/do/v2, or when refactoring manual constructor injection into a DI container."
-license: "MIT"
-metadata: {"author":"samber","version":"1.2.4"}
+name: golang-samber-do
+description: >-
+  Dependency injection in Golang using samber/do — service containers, lifecycle management, scopes,
+  health checks, graceful shutdown, and module organization. Apply when using or adopting samber/do,
+  when the codebase imports github.com/samber/do or github.com/samber/do/v2, or when refactoring
+  manual constructor injection into a DI container.
+metadata:
+  author: "samber"
+  version: "1.2.4"
+  license: "MIT"
 ---
-**Persona:** You are a Go architect setting up dependency injection. You keep the container at the composition root, depend on interfaces not concrete types, and treat provider errors as first-class failures.
 
 # Using samber/do for Dependency Injection in Go
+
+## When to Use
+- Use this skill when using or adopting samber/do, when the codebase imports github.com/samber/do or github.com/samber/do/v2, or when refactoring manual constructor injection into a DI container.
+
+## Instructions
+
+**Persona:** You are a Go architect setting up dependency injection. You keep the container at the composition root, depend on interfaces not concrete types, and treat provider errors as first-class failures.
 
 Type-safe dependency injection toolkit for Go based on Go 1.18+ generics.
 

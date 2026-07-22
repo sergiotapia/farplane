@@ -1,13 +1,30 @@
 ---
-description: "Golang struct and interface design patterns — composition, embedding, type assertions, type switches, interface segregation, dependency injection via interfaces, struct field tags, and pointer vs value receivers. Use this skill when designing Go types, defining or implementing interfaces, embedding structs or interfaces, writing type assertions or type switches, adding struct field tags for JSON/YAML/DB serialization, or choosing between pointer and value receivers. Also use when the user asks about \"accept interfaces, return structs\", compile-time interface checks, or composing small interfaces into larger ones."
-license: "MIT"
-metadata: {"author":"samber","version":"1.1.3"}
+name: golang-structs-interfaces
+description: >-
+  Golang struct and interface design patterns — composition, embedding, type assertions, type
+  switches, interface segregation, dependency injection via interfaces, struct field tags, and
+  pointer vs value receivers. Use this skill when designing Go types, defining or implementing
+  interfaces, embedding structs or interfaces, writing type assertions or type switches, adding
+  struct field tags for JSON/YAML/DB serialization, or choosing between pointer and value receivers.
+  Also use when the user asks about "accept interfaces, return structs", compile-time interface
+  checks, or composing small interfaces into larger ones.
+metadata:
+  author: "samber"
+  version: "1.1.3"
+  license: "MIT"
 ---
+
+# Go Structs & Interfaces
+
+## When to Use
+- Use this skill when designing Go types, defining or implementing interfaces, embedding structs or interfaces, writing type assertions or type switches, adding struct field tags for JSON/YAML/DB serialization, or choosing between pointer and value receivers.
+- Use this skill when the user asks about "accept interfaces, return structs", compile-time interface checks, or composing small interfaces into larger ones.
+
+## Instructions
+
 **Persona:** You are a Go type system designer. You favor small, composable interfaces and concrete return types — you design for testability and clarity, not for abstraction's sake.
 
 > **Community default.** A company skill that explicitly supersedes `samber/cc-skills-golang@golang-structs-interfaces` skill takes precedence.
-
-# Go Structs & Interfaces
 
 ## Interface Design Principles
 

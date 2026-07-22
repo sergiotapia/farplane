@@ -1,16 +1,32 @@
 ---
-description: "Comprehensive guide to stretchr/testify for Golang testing. Covers assert, require, mock, and suite packages in depth. Use when writing tests with testify, creating mocks, setting up test suites, or choosing between assert and require. Covers testify assertions, mock expectations, argument matchers, call verification, suite lifecycle, and advanced patterns like Eventually, JSONEq, and custom matchers. Apply when the codebase imports github.com/stretchr/testify."
-license: "MIT"
-metadata: {"author":"samber","version":"1.2.3"}
+name: golang-stretchr-testify
+description: >-
+  Comprehensive guide to stretchr/testify for Golang testing. Covers assert, require, mock, and
+  suite packages in depth. Use when writing tests with testify, creating mocks, setting up test
+  suites, or choosing between assert and require. Covers testify assertions, mock expectations,
+  argument matchers, call verification, suite lifecycle, and advanced patterns like Eventually,
+  JSONEq, and custom matchers. Apply when the codebase imports github.com/stretchr/testify.
+metadata:
+  author: "samber"
+  version: "1.2.3"
+  license: "MIT"
 ---
+
+# stretchr/testify
+
+## When to Use
+- Use this skill when writing tests with testify, creating mocks, setting up test suites, or choosing between assert and require.
+- This skill covers testify assertions, mock expectations, argument matchers, call verification, suite lifecycle, and advanced patterns like Eventually, JSONEq, and custom matchers.
+- Use this skill when the codebase imports github.com/stretchr/testify.
+
+## Instructions
+
 **Persona:** You are a Go engineer who treats tests as executable specifications. You write tests to constrain behavior and make failures self-explanatory — not to hit coverage targets.
 
 **Modes:**
 
 - **Write mode** — adding new tests or mocks to a codebase.
 - **Review mode** — auditing existing test code for testify misuse.
-
-# stretchr/testify
 
 testify complements Go's `testing` package with readable assertions, mocks, and suites. It does not replace `testing` — always use `*testing.T` as the entry point.
 

@@ -1,13 +1,29 @@
 ---
-description: "Golang code style conventions — line length and breaking, variable declarations, control flow clarity, when comments help vs hurt. Use when writing or reviewing Go code, asking about style or clarity, or establishing project coding standards. Not for naming conventions (→ See `samber/cc-skills-golang@golang-naming` skill), linter configuration (→ See `samber/cc-skills-golang@golang-lint` skill), or doc comments (→ See `samber/cc-skills-golang@golang-documentation` skill)."
-license: "MIT"
-metadata: {"author":"samber","version":"1.2.2"}
+name: golang-code-style
+description: >-
+  Golang code style conventions — line length and breaking, variable declarations, control flow
+  clarity, when comments help vs hurt. Use when writing or reviewing Go code, asking about style or
+  clarity, or establishing project coding standards. Not for naming conventions (→ See
+  `samber/cc-skills-golang@golang-naming` skill), linter configuration (→ See
+  `samber/cc-skills-golang@golang-lint` skill), or doc comments (→ See
+  `samber/cc-skills-golang@golang-documentation` skill).
+metadata:
+  author: "samber"
+  version: "1.2.2"
+  license: "MIT"
 ---
+
+# Go Code Style
+
+## When to Use
+- Use this skill when writing or reviewing Go code, asking about style or clarity, or establishing project coding standards.
+- Do not use this skill for naming conventions (→ See `samber/cc-skills-golang@golang-naming` skill), linter configuration (→ See `samber/cc-skills-golang@golang-lint` skill), or doc comments (→ See `samber/cc-skills-golang@golang-documentation` skill).
+
+## Instructions
+
 **Orchestration mode:** Use `ultracode` when reviewing code style across a large codebase — orchestrate the sub-agents described in the "Parallelizing Code Style Reviews" section, each covering an independent style concern, and merge their findings.
 
 > **Community default.** A company skill that explicitly supersedes `samber/cc-skills-golang@golang-code-style` skill takes precedence.
-
-# Go Code Style
 
 Style rules that require human judgment — linters handle formatting, this skill handles clarity. For naming see `samber/cc-skills-golang@golang-naming` skill; for design patterns see `samber/cc-skills-golang@golang-design-patterns` skill; for struct/interface design see `samber/cc-skills-golang@golang-structs-interfaces` skill.
 

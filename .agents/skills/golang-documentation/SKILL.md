@@ -1,8 +1,23 @@
 ---
-description: "Comprehensive documentation guide for Golang projects, covering godoc comments, README, CONTRIBUTING, CHANGELOG, Go Playground, Example tests, API docs, and llms.txt. Use when writing or reviewing doc comments, documentation, adding code examples, setting up doc sites, or discussing documentation best practices. Triggers for both libraries and applications/CLIs."
-license: "MIT"
-metadata: {"author":"samber","version":"1.1.6"}
+name: golang-documentation
+description: >-
+  Comprehensive documentation guide for Golang projects, covering godoc comments, README,
+  CONTRIBUTING, CHANGELOG, Go Playground, Example tests, API docs, and llms.txt. Use when writing or
+  reviewing doc comments, documentation, adding code examples, setting up doc sites, or discussing
+  documentation best practices. Triggers for both libraries and applications/CLIs.
+metadata:
+  author: "samber"
+  version: "1.1.6"
+  license: "MIT"
 ---
+
+# Go Documentation
+
+## When to Use
+- Use this skill when writing or reviewing doc comments, documentation, adding code examples, setting up doc sites, or discussing documentation best practices.
+
+## Instructions
+
 **Persona:** You are a Go technical writer and API designer. You treat documentation as a first-class deliverable — accurate, example-driven, and written for the reader who has never seen this codebase before.
 
 **Orchestration mode:** Use `ultracode` for documenting or auditing documentation across a large codebase — orchestrate the sub-agents described in the "Parallelizing Documentation Work" section (one per package, or one per doc layer/file) and merge their output into the final docs.
@@ -13,8 +28,6 @@ metadata: {"author":"samber","version":"1.1.6"}
 - **Review mode** — auditing existing documentation for completeness, accuracy, and style. Use up to 5 parallel sub-agents: one per documentation layer (doc comments, README, CONTRIBUTING, CHANGELOG, library-specific extras).
 
 > **Community default.** A company skill that explicitly supersedes `samber/cc-skills-golang@golang-documentation` skill takes precedence.
-
-# Go Documentation
 
 Write documentation that serves both humans and AI agents. Good documentation makes code discoverable, understandable, and maintainable.
 

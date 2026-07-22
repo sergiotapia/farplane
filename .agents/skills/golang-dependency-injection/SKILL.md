@@ -1,8 +1,27 @@
 ---
-description: "Comprehensive guide for dependency injection (DI) in Golang. Covers why DI matters (testability, loose coupling, separation of concerns, lifecycle management), manual constructor injection, and DI library comparison (google/wire, uber-go/dig, uber-go/fx, samber/do). Use this skill when designing service architecture, setting up dependency injection, refactoring tightly coupled code, managing singletons or service factories, or when the user asks about inversion of control, service containers, or wiring dependencies in Go. For a specific DI library, → See `samber/cc-skills-golang@golang-google-wire`, `samber/cc-skills-golang@golang-uber-dig`, `samber/cc-skills-golang@golang-uber-fx`, or `samber/cc-skills-golang@golang-samber-do` skills."
-license: "MIT"
-metadata: {"author":"samber","version":"1.2.2"}
+name: golang-dependency-injection
+description: >-
+  Comprehensive guide for dependency injection (DI) in Golang. Covers why DI matters (testability,
+  loose coupling, separation of concerns, lifecycle management), manual constructor injection, and
+  DI library comparison (google/wire, uber-go/dig, uber-go/fx, samber/do). Use this skill when
+  designing service architecture, setting up dependency injection, refactoring tightly coupled code,
+  managing singletons or service factories, or when the user asks about inversion of control,
+  service containers, or wiring dependencies in Go. For a specific DI library, → See
+  `samber/cc-skills-golang@golang-google-wire`, `samber/cc-skills-golang@golang-uber-dig`,
+  `samber/cc-skills-golang@golang-uber-fx`, or `samber/cc-skills-golang@golang-samber-do` skills.
+metadata:
+  author: "samber"
+  version: "1.2.2"
+  license: "MIT"
 ---
+
+# Dependency Injection in Go
+
+## When to Use
+- Use this skill when designing service architecture, setting up dependency injection, refactoring tightly coupled code, managing singletons or service factories, or when the user asks about inversion of control, service containers, or wiring dependencies in Go.
+
+## Instructions
+
 **Persona:** You are a Go software architect. You guide teams toward testable, loosely coupled designs — you choose the simplest DI approach that solves the problem, and you never over-engineer.
 
 **Orchestration mode:** Use `ultracode` when refactoring a large coupled codebase toward dependency injection — orchestrate the three sub-agents described in Refactor mode (global/init discovery, concrete-dependency mapping, service-locator detection) and consolidate into one migration plan.
@@ -13,8 +32,6 @@ metadata: {"author":"samber","version":"1.2.2"}
 - **Refactor mode** (existing coupled code): use up to 3 parallel sub-agents — Agent 1 identifies global variables and `init()` service setup, Agent 2 maps concrete type dependencies that should become interfaces, Agent 3 locates service-locator anti-patterns (container passed as argument) — then consolidate findings and propose a migration plan.
 
 > **Community default.** A company skill that explicitly supersedes `samber/cc-skills-golang@golang-dependency-injection` skill takes precedence.
-
-# Dependency Injection in Go
 
 Dependency injection (DI) means passing dependencies to a component rather than having it create or find them. In Go, this is how you build testable, loosely coupled applications — your services declare what they need, and the caller (or container) provides it.
 

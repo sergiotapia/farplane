@@ -1,13 +1,30 @@
 ---
-description: "Reactive streams and event-driven programming in Golang using samber/ro — ReactiveX implementation with 150+ type-safe operators, cold/hot observables, 5 subject types (Publish, Behavior, Replay, Async, Unicast), declarative pipelines via Pipe, 40+ plugins (HTTP, cron, fsnotify, JSON, logging), automatic backpressure, error propagation, and Go context integration. Apply when using or adopting samber/ro, when the codebase imports github.com/samber/ro, or when building asynchronous event-driven pipelines, real-time data processing, streams, or reactive architectures in Go. Not for finite slice transforms (→ See `samber/cc-skills-golang@golang-samber-lo` skill)."
-license: "MIT"
-metadata: {"author":"samber","version":"1.1.3"}
+name: golang-samber-ro
+description: >-
+  Reactive streams and event-driven programming in Golang using samber/ro — ReactiveX implementation
+  with 150+ type-safe operators, cold/hot observables, 5 subject types (Publish, Behavior, Replay,
+  Async, Unicast), declarative pipelines via Pipe, 40+ plugins (HTTP, cron, fsnotify, JSON,
+  logging), automatic backpressure, error propagation, and Go context integration. Apply when using
+  or adopting samber/ro, when the codebase imports github.com/samber/ro, or when building
+  asynchronous event-driven pipelines, real-time data processing, streams, or reactive architectures
+  in Go. Not for finite slice transforms (→ See `samber/cc-skills-golang@golang-samber-lo` skill).
+metadata:
+  author: "samber"
+  version: "1.1.3"
+  license: "MIT"
 ---
+
+# samber/ro — Reactive Streams for Go
+
+## When to Use
+- Use this skill when using or adopting samber/ro, when the codebase imports github.com/samber/ro, or when building asynchronous event-driven pipelines, real-time data processing, streams, or reactive architectures in Go.
+- Do not use this skill for finite slice transforms (→ See `samber/cc-skills-golang@golang-samber-lo` skill).
+
+## Instructions
+
 **Persona:** You are a Go engineer who reaches for reactive streams when data flows asynchronously or infinitely. You use samber/ro to build declarative pipelines instead of manual goroutine/channel wiring, but you know when a simple slice + samber/lo is enough.
 
 **Thinking mode:** Use `ultrathink` when designing advanced reactive pipelines or choosing between cold/hot observables, subjects, and combining operators. Wrong architecture leads to resource leaks or missed events.
-
-# samber/ro — Reactive Streams for Go
 
 Go implementation of [ReactiveX](https://reactivex.io/). Generics-first, type-safe, composable pipelines for asynchronous data streams with automatic backpressure, error propagation, context integration, and resource cleanup. 150+ operators, 5 subject types, 40+ plugins.
 

@@ -1,15 +1,30 @@
 ---
-description: "Compile-time dependency injection in Golang using google/wire — wire.NewSet, wire.Build, wire.Bind (interface→concrete), wire.Struct, wire.Value, wire.InterfaceValue, wire.FieldsOf, cleanup functions, //go:build wireinject injector files, and generated wire_gen.go. Apply when using or adopting google/wire, when the codebase imports `github.com/google/wire`, or when wiring an application graph at compile time via `wire.Build`. For runtime DI with reflection, see `samber/cc-skills-golang@golang-uber-dig` skill."
-license: "MIT"
-metadata: {"author":"samber","version":"1.0.6"}
+name: golang-google-wire
+description: >-
+  Compile-time dependency injection in Golang using google/wire — wire.NewSet, wire.Build, wire.Bind
+  (interface→concrete), wire.Struct, wire.Value, wire.InterfaceValue, wire.FieldsOf, cleanup
+  functions, //go:build wireinject injector files, and generated wire_gen.go. Apply when using or
+  adopting google/wire, when the codebase imports `github.com/google/wire`, or when wiring an
+  application graph at compile time via `wire.Build`. For runtime DI with reflection, see
+  `samber/cc-skills-golang@golang-uber-dig` skill.
+metadata:
+  author: "samber"
+  version: "1.0.6"
+  license: "MIT"
 ---
+
+# Using google/wire for Compile-Time Dependency Injection in Go
+
+## When to Use
+- Use this skill when using or adopting google/wire, when the codebase imports `github.com/google/wire`, or when wiring an application graph at compile time via `wire.Build`.
+
+## Instructions
+
 **Persona:** You are a Go architect using wire for compile-time DI. You let the compiler catch missing dependencies, treat `wire_gen.go` as committed source, and re-run `wire ./...` after every graph change.
 
 **Dependencies:**
 
 - wire: `go install github.com/google/wire/cmd/wire@latest`
-
-# Using google/wire for Compile-Time Dependency Injection in Go
 
 Code-generation DI toolkit. Wire resolves the dependency graph at compile time and emits plain Go constructor calls — no runtime container, no reflection. Errors appear when you run `wire ./...`, not at first request.
 

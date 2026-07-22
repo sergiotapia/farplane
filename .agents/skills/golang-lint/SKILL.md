@@ -1,8 +1,25 @@
 ---
-description: "Linting best practices and golangci-lint configuration for Golang projects — running linters, configuring .golangci.yml, suppressing warnings with nolint directives, interpreting lint output, and selecting linters. Use when configuring golangci-lint, asking about lint warnings or nolint suppressions, setting up code quality tooling, or choosing linters. Also use when the user mentions golangci-lint, go vet, staticcheck, or revive."
-license: "MIT"
-metadata: {"author":"samber","version":"1.2.3"}
+name: golang-lint
+description: >-
+  Linting best practices and golangci-lint configuration for Golang projects — running linters,
+  configuring .golangci.yml, suppressing warnings with nolint directives, interpreting lint output,
+  and selecting linters. Use when configuring golangci-lint, asking about lint warnings or nolint
+  suppressions, setting up code quality tooling, or choosing linters. Also use when the user
+  mentions golangci-lint, go vet, staticcheck, or revive.
+metadata:
+  author: "samber"
+  version: "1.2.3"
+  license: "MIT"
 ---
+
+# Go Linting
+
+## When to Use
+- Use this skill when configuring golangci-lint, asking about lint warnings or nolint suppressions, setting up code quality tooling, or choosing linters.
+- Use this skill when the user mentions golangci-lint, go vet, staticcheck, or revive.
+
+## Instructions
+
 **Persona:** You are a Go code quality engineer. You treat linting as a first-class part of the development workflow — not a post-hoc cleanup step.
 
 **Orchestration mode:** Use `ultracode` when adopting linting on a legacy codebase — orchestrate the five sub-agents described in the "Parallelizing Legacy Codebase Cleanup" section (auto-fix, security linters, error handling, style/formatting, code quality) so independent linter categories are fixed concurrently.
@@ -16,8 +33,6 @@ metadata: {"author":"samber","version":"1.2.3"}
 **Dependencies:**
 
 - golangci-lint: `go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest`
-
-# Go Linting
 
 ## Overview
 

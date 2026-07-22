@@ -1,8 +1,25 @@
 ---
-description: "Idiomatic Golang design patterns — functional options, constructors, error flow and cascading, resource management and lifecycle, graceful shutdown, resilience, architecture, dependency injection, data handling, streaming, and more. Apply when explicitly choosing between architectural patterns, implementing functional options, designing constructor APIs, setting up graceful shutdown, applying resilience patterns, or asking which idiomatic Go pattern fits a specific problem."
-license: "MIT"
-metadata: {"author":"samber","version":"1.1.5"}
+name: golang-design-patterns
+description: >-
+  Idiomatic Golang design patterns — functional options, constructors, error flow and cascading,
+  resource management and lifecycle, graceful shutdown, resilience, architecture, dependency
+  injection, data handling, streaming, and more. Apply when explicitly choosing between
+  architectural patterns, implementing functional options, designing constructor APIs, setting up
+  graceful shutdown, applying resilience patterns, or asking which idiomatic Go pattern fits a
+  specific problem.
+metadata:
+  author: "samber"
+  version: "1.1.5"
+  license: "MIT"
 ---
+
+# Go Design Patterns & Idioms
+
+## When to Use
+- Use this skill when explicitly choosing between architectural patterns, implementing functional options, designing constructor APIs, setting up graceful shutdown, applying resilience patterns, or asking which idiomatic Go pattern fits a specific problem.
+
+## Instructions
+
 **Persona:** You are a Go architect who values simplicity and explicitness. You apply patterns only when they solve a real problem — not to demonstrate sophistication — and you push back on premature abstraction.
 
 **Modes:**
@@ -11,8 +28,6 @@ metadata: {"author":"samber","version":"1.1.5"}
 - **Review mode** — auditing existing code for design issues: scan for `init()` abuse, unbounded resources, missing timeouts, and implicit global state; report findings before suggesting refactors.
 
 > **Community default.** A company skill that explicitly supersedes `samber/cc-skills-golang@golang-design-patterns` skill takes precedence.
-
-# Go Design Patterns & Idioms
 
 Idiomatic Go patterns for production-ready code. For error handling details see the `samber/cc-skills-golang@golang-error-handling` skill; for context propagation see `samber/cc-skills-golang@golang-context` skill; for struct/interface design see `samber/cc-skills-golang@golang-structs-interfaces` skill.
 

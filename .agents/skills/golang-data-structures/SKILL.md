@@ -1,11 +1,25 @@
 ---
-description: "Golang data structures — slices (internals, capacity growth, preallocation, slices package), maps (internals, hash buckets, maps package), arrays, container/list/heap/ring, strings.Builder vs bytes.Buffer, generic collections, pointers (unsafe.Pointer, weak.Pointer), and copy semantics. Use when choosing or optimizing Go data structures, implementing generic containers, using container/ packages, unsafe or weak pointers, or questioning slice/map internals."
-license: "MIT"
-metadata: {"author":"samber","version":"1.1.6"}
+name: golang-data-structures
+description: >-
+  Golang data structures — slices (internals, capacity growth, preallocation, slices package), maps
+  (internals, hash buckets, maps package), arrays, container/list/heap/ring, strings.Builder vs
+  bytes.Buffer, generic collections, pointers (unsafe.Pointer, weak.Pointer), and copy semantics.
+  Use when choosing or optimizing Go data structures, implementing generic containers, using
+  container/ packages, unsafe or weak pointers, or questioning slice/map internals.
+metadata:
+  author: "samber"
+  version: "1.1.6"
+  license: "MIT"
 ---
-**Persona:** You are a Go engineer who understands data structure internals. You choose the right structure for the job — not the most familiar one — by reasoning about memory layout, allocation cost, and access patterns.
 
 # Go Data Structures
+
+## When to Use
+- Use this skill when choosing or optimizing Go data structures, implementing generic containers, using container/ packages, unsafe or weak pointers, or questioning slice/map internals.
+
+## Instructions
+
+**Persona:** You are a Go engineer who understands data structure internals. You choose the right structure for the job — not the most familiar one — by reasoning about memory layout, allocation cost, and access patterns.
 
 Built-in and standard library data structures: internals, correct usage, and selection guidance. For safety pitfalls (nil maps, append aliasing, defensive copies) see `samber/cc-skills-golang@golang-safety` skill. For channels and sync primitives see `samber/cc-skills-golang@golang-concurrency` skill. For string/byte/rune choice see `samber/cc-skills-golang@golang-design-patterns` skill.
 

@@ -1,8 +1,24 @@
 ---
-description: "Modernize Golang code to use recent language features, standard library improvements, and idiomatic patterns. Trigger proactively when writing or reviewing Go code and old-style patterns are detected, or when encountering a deprecation warning. Also use when the user explicitly asks for modernization, a Go version upgrade, or a CI/tooling refresh."
-license: "MIT"
-metadata: {"author":"samber","version":"1.2.5"}
+name: golang-modernize
+description: >-
+  Modernize Golang code to use recent language features, standard library improvements, and
+  idiomatic patterns. Trigger proactively when writing or reviewing Go code and old-style patterns
+  are detected, or when encountering a deprecation warning. Also use when the user explicitly asks
+  for modernization, a Go version upgrade, or a CI/tooling refresh.
+metadata:
+  author: "samber"
+  version: "1.2.5"
+  license: "MIT"
 ---
+
+# Go Code Modernization Guide
+
+## When to Use
+- Use this skill when writing or reviewing Go code and old-style patterns are detected, or when encountering a deprecation warning.
+- Use this skill when the user explicitly asks for modernization, a Go version upgrade, or a CI/tooling refresh.
+
+## Instructions
+
 <!-- markdownlint-disable ol-prefix -->
 
 **Persona:** You are a Go modernization engineer. You keep codebases current with the latest Go idioms and standard library improvements — you prioritize safety and correctness fixes first, then readability, then gradual improvements.
@@ -13,8 +29,6 @@ metadata: {"author":"samber","version":"1.2.5"}
 
 - **Inline mode** (developer is actively coding): suggest only modernizations relevant to the current file or feature; mention other opportunities you noticed but do not touch unrelated files.
 - **Full-scan mode** (explicit `/golang-modernize` invocation or CI): use up to 5 parallel sub-agents — Agent 1 scans deprecated packages and API replacements, Agent 2 scans language feature opportunities (range-over-int, min/max, any, iterators), Agent 3 scans standard library upgrades (slices, maps, cmp, slog), Agent 4 scans testing patterns (t.Context, b.Loop, synctest), Agent 5 scans tooling and infra (golangci-lint v2, govulncheck, PGO, CI pipeline) — then consolidate and prioritize by the migration priority guide. The scan itself is read-only; once consolidated, apply the resulting codebase-wide rewrite in an isolated worktree (`EnterWorktree`) so a sweeping multi-file modernization never touches the developer's main tree until reviewed.
-
-# Go Code Modernization Guide
 
 This skill helps you continuously modernize Go codebases by replacing outdated patterns with their modern equivalents.
 

@@ -1,8 +1,26 @@
 ---
-description: "Golang benchmarking, profiling, and performance measurement. Use when writing, running, or comparing Go benchmarks, profiling hot paths with pprof, interpreting CPU/memory/trace profiles, analyzing results with benchstat, setting up CI benchmark regression detection, or investigating production performance with Prometheus runtime metrics. Also use when the developer needs deep analysis on a specific performance indicator - this skill provides the measurement methodology, while `samber/cc-skills-golang@golang-performance` provides the optimization patterns."
-license: "MIT"
-metadata: {"author":"samber","version":"1.2.7"}
+name: golang-benchmark
+description: >-
+  Golang benchmarking, profiling, and performance measurement. Use when writing, running, or
+  comparing Go benchmarks, profiling hot paths with pprof, interpreting CPU/memory/trace profiles,
+  analyzing results with benchstat, setting up CI benchmark regression detection, or investigating
+  production performance with Prometheus runtime metrics. Also use when the developer needs deep
+  analysis on a specific performance indicator - this skill provides the measurement methodology,
+  while `samber/cc-skills-golang@golang-performance` provides the optimization patterns.
+metadata:
+  author: "samber"
+  version: "1.2.7"
+  license: "MIT"
 ---
+
+# Go Benchmarking & Performance Measurement
+
+## When to Use
+- Use this skill when writing, running, or comparing Go benchmarks, profiling hot paths with pprof, interpreting CPU/memory/trace profiles, analyzing results with benchstat, setting up CI benchmark regression detection, or investigating production performance with Prometheus runtime metrics.
+- Use this skill when the developer needs deep analysis on a specific performance indicator - this skill provides the measurement methodology, while `samber/cc-skills-golang@golang-performance` provides the optimization patterns.
+
+## Instructions
+
 **Persona:** You are a Go performance measurement engineer. You never draw conclusions from a single benchmark run — statistical rigor and controlled conditions are prerequisites before any optimization decision.
 
 **Thinking mode:** Use `ultrathink` for benchmark analysis, profile interpretation, and performance comparison tasks. Deep reasoning prevents misinterpreting profiling data and ensures statistically sound conclusions.
@@ -10,8 +28,6 @@ metadata: {"author":"samber","version":"1.2.7"}
 **Dependencies:**
 
 - benchstat: `go install golang.org/x/perf/cmd/benchstat@latest`
-
-# Go Benchmarking & Performance Measurement
 
 Performance improvement does not exist without measures — if you can measure it, you can improve it.
 
