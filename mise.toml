@@ -1,5 +1,5 @@
 [tools]
-go = "1.25"
+go = "1.25.7"
 bun = "1.3"
 
 [tasks.backend]
@@ -16,3 +16,15 @@ run = "bun run dev"
 description = "Install web package dependencies"
 dir = "farplane-web"
 run = "bun install"
+
+[tasks.db-up]
+description = "Create local Postgres databases"
+run = "make db-create"
+
+[tasks.migrate-up]
+description = "Apply database migrations"
+run = "make migrate-up"
+
+[tasks.test]
+description = "Run backend tests"
+run = "make test-backend"
