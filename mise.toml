@@ -1,0 +1,18 @@
+[tools]
+go = "1.25"
+bun = "1.3"
+
+[tasks.backend]
+description = "Run the Go control plane"
+dir = "farplane-backend"
+run = "go run ./cmd/farplane"
+
+[tasks.web]
+description = "Run the TanStack Router SPA (Rsbuild)"
+dir = "farplane-web"
+run = "bun run dev"
+
+[tasks.install-web]
+description = "Install web package dependencies"
+dir = "farplane-web"
+run = "bun install"
