@@ -130,3 +130,4 @@ postgres-data/
 .temp/
 .tmp/
 
+plan.md
