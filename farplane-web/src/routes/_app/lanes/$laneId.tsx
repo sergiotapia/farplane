@@ -69,7 +69,7 @@ export const Route = createFileRoute('/_app/lanes/$laneId')({
 function LaneChatPage() {
   const { laneId } = Route.useParams()
   const { panel } = Route.useSearch()
-  const navigate = useNavigate({ from: '/_app/lanes/$laneId' })
+  const navigate = useNavigate()
   const { me } = useRouteContext({ from: '/_app' })
   const queryClient = useQueryClient()
   const [text, setText] = useState('')
@@ -80,6 +80,7 @@ function LaneChatPage() {
     email: string
   } | null>(null)
   const [membersError, setMembersError] = useState<string | null>(null)
+  const [destroyDialogOpen, setDestroyDialogOpen] = useState(false)
 
   const membersOpen = panel === 'members'
 
@@ -185,7 +186,19 @@ function LaneChatPage() {
   }, [laneId, queryClient])
 
   function closeMembersPanel() {
-    void navigate({ search: { panel: undefined } })
+    void navigate({
+      to: '/lanes/$laneId',
+      params: { laneId },
+      search: { panel: undefined },
+    })
+  }
+
+  function openMembersPanel() {
+    void navigate({
+      to: '/lanes/$laneId',
+      params: { laneId },
+      search: { panel: 'members' },
+    })
   }
 
   async function refreshAfterPeopleChange() {
@@ -248,6 +261,7 @@ function LaneChatPage() {
   const destroyMutation = useMutation({
     mutationFn: () => destroyLane(laneId),
     onSuccess: async () => {
+      setDestroyDialogOpen(false)
       await queryClient.invalidateQueries({ queryKey: lanesQueryKey })
       await navigate({ to: '/' })
     },
@@ -326,7 +340,7 @@ function LaneChatPage() {
             type="button"
             size="sm"
             variant="outline"
-            onClick={() => void navigate({ search: { panel: 'members' } })}
+            onClick={openMembersPanel}
           >
             Members
           </Button>
@@ -350,17 +364,11 @@ function LaneChatPage() {
               variant="destructive"
               disabled={destroyMutation.isPending}
               onClick={() => {
-                if (
-                  !window.confirm(
-                    'Destroy this Lane? The Runtime computer is removed and the Lane is archived.',
-                  )
-                ) {
-                  return
-                }
-                destroyMutation.mutate()
+                if (destroyMutation.isError) destroyMutation.reset()
+                setDestroyDialogOpen(true)
               }}
             >
-              {destroyMutation.isPending ? 'Destroying…' : 'Destroy Lane'}
+              Destroy Lane
             </Button>
           )}
         </div>
@@ -475,7 +483,7 @@ function LaneChatPage() {
               type="button"
               size="sm"
               variant="ghost"
-              onClick={() => void navigate({ search: { panel: 'members' } })}
+              onClick={openMembersPanel}
             >
               Manage
             </Button>
@@ -490,6 +498,58 @@ function LaneChatPage() {
           </ul>
         </div>
       </aside>
+
+      <Dialog
+        open={destroyDialogOpen}
+        onOpenChange={(open) => {
+          if (destroyMutation.isPending) return
+          setDestroyDialogOpen(open)
+        }}
+      >
+        <DialogContent showCloseButton={!destroyMutation.isPending}>
+          <DialogHeader>
+            <DialogTitle>Destroy this Lane?</DialogTitle>
+            <DialogDescription>
+              {lane?.name ? (
+                <>
+                  “{lane.name}” will disappear for everyone, and its computer
+                  will shut down. You can’t undo this.
+                </>
+              ) : (
+                <>
+                  This Lane will disappear for everyone, and its computer will
+                  shut down. You can’t undo this.
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={destroyMutation.isPending}
+              onClick={() => setDestroyDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={destroyMutation.isPending}
+              onClick={() => destroyMutation.mutate()}
+            >
+              {destroyMutation.isPending ? 'Destroying…' : 'Destroy Lane'}
+            </Button>
+          </DialogFooter>
+          {destroyMutation.isError ? (
+            <p className="text-destructive text-sm">
+              {destroyMutation.error instanceof ApiError
+                ? destroyMutation.error.message
+                : 'Could not destroy Lane'}
+            </p>
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={membersOpen}
