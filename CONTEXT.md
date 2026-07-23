@@ -45,6 +45,12 @@ The AI discovery flow that clones a Project’s GitHub repository, explores its
 requirements, and proposes a Project Environment Dockerfile.
 _Avoid_: Setup agent, discovery job (when you mean this product flow)
 
+**Discovery harness**:
+The host-installed headless agent CLI chosen for Project Environment generation.
+Selection requires a matching organization secret and a binary on the Farplane
+host PATH (`omp`, `opencode`, `claude`, or `codex`).
+_Avoid_: Lane agent (the harness inside a Lane computer), model
+
 ### Lanes
 
 **Lane**:

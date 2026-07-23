@@ -2,6 +2,7 @@ package envgen_test
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,6 +18,9 @@ func TestGenerateHeuristicFromGoMod(t *testing.T) {
 	}
 	svc := envgen.New()
 	svc.HTTP = nil // force heuristic path
+	svc.LookPath = func(file string) (string, error) {
+		return "", errors.New("not on PATH")
+	}
 	result, err := svc.Generate(context.Background(), envgen.Request{
 		WorkspaceDir: dir,
 		RepoFullName: "alice/app",

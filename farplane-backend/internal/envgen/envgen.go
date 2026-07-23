@@ -48,19 +48,23 @@ type HTTPDoer interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
-// Service explores a repo and asks an LLM (or falls back to heuristics).
+// Service explores a repo with a host discovery harness (or falls back).
 type Service struct {
-	HTTP HTTPDoer
+	HTTP       HTTPDoer
+	LookPath   LookPathFunc
+	RunCommand RunCommandFunc
 }
 
 // New returns a Service with a default HTTP client.
 func New() *Service {
 	return &Service{
-		HTTP: &http.Client{Timeout: 2 * time.Minute},
+		HTTP:     &http.Client{Timeout: 2 * time.Minute},
+		LookPath: exec.LookPath,
 	}
 }
 
 // Generate explores WorkspaceDir and returns a Dockerfile that includes the Farplane base.
+// Preference: host discovery harness (secret + PATH) → HTTP LLM → heuristic.
 func (s *Service) Generate(ctx context.Context, req Request) (Result, error) {
 	if strings.TrimSpace(req.WorkspaceDir) == "" {
 		return Result{}, fmt.Errorf("workspace dir is required")
@@ -72,6 +76,27 @@ func (s *Service) Generate(ctx context.Context, req Request) (Result, error) {
 	base, err := lanetemplate.DefaultDockerfile()
 	if err != nil {
 		return Result{}, fmt.Errorf("default dockerfile: %w", err)
+	}
+
+	lookPath := s.LookPath
+	if lookPath == nil {
+		lookPath = exec.LookPath
+	}
+	harness, harnessErr := SelectDiscoveryHarness(req.Secrets, lookPath)
+	if harnessErr == nil {
+		dockerfile, harnessLog, runErr := s.runDiscoveryHarness(ctx, harness, req, base, signals)
+		exploreLog += "\n" + harnessLog
+		if runErr == nil && strings.TrimSpace(dockerfile) != "" {
+			return Result{
+				DockerfileText: ensureFarplaneRuntimeBits(dockerfile, base),
+				Log:            exploreLog,
+			}, nil
+		}
+		if runErr != nil {
+			exploreLog += "Harness generation failed: " + runErr.Error() + "\nFalling back.\n"
+		}
+	} else {
+		exploreLog += "\nNo host discovery harness: " + harnessErr.Error() + "\n"
 	}
 
 	source := strings.TrimSpace(req.ModelSource)
@@ -95,7 +120,7 @@ func (s *Service) Generate(ctx context.Context, req Request) (Result, error) {
 			exploreLog += "\nLLM generation failed: " + llmErr.Error() + "\nFalling back to heuristic Dockerfile.\n"
 		}
 	} else {
-		exploreLog += "\nNo LLM API key available; using heuristic Dockerfile.\n"
+		exploreLog += "Using heuristic Dockerfile.\n"
 	}
 
 	return Result{
