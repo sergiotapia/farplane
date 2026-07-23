@@ -11,6 +11,7 @@ import (
 	"github.com/farplane/farplane/farplane-backend/internal/config"
 	"github.com/farplane/farplane/farplane-backend/internal/githubapp"
 	"github.com/farplane/farplane/farplane-backend/internal/lanehub"
+	"github.com/farplane/farplane/farplane-backend/internal/runtime"
 	dockerruntime "github.com/farplane/farplane/farplane-backend/internal/runtime/docker"
 	"github.com/farplane/farplane/farplane-backend/internal/store"
 )
@@ -32,6 +33,13 @@ func WithGitHubApp(client GitHubApp) Option {
 func WithManifestConvert(fn func(ctx context.Context, code string) (githubapp.ManifestApp, error)) Option {
 	return func(a *api) {
 		a.manifestConvert = fn
+	}
+}
+
+// WithRuntime injects a Runtime implementation (typically a fake in tests).
+func WithRuntime(rt runtime.Runtime) Option {
+	return func(a *api) {
+		a.runtime = rt
 	}
 }
 
@@ -111,18 +119,25 @@ func New(pool *pgxpool.Pool, cfg config.Config, opts ...Option) *gin.Engine {
 
 			authed.GET("/lane-agents", api.handleListLaneAgents)
 
+			authed.GET("/lanes", api.handleListLanes)
+			authed.POST("/lanes", api.handleCreateLaneTopLevel)
 			authed.GET("/projects/:id/lanes", api.handleListProjectLanes)
-			authed.POST("/projects/:id/lanes", api.handleCreateLane)
+			authed.POST("/projects/:id/lanes", api.handleCreateLaneForProject)
 			authed.GET("/lanes/:id", api.handleGetLane)
 			authed.PATCH("/lanes/:id", api.handlePatchLane)
+			authed.DELETE("/lanes/:id", api.handleDestroyLane)
 			authed.GET("/lanes/:id/messages", api.handleListLaneMessages)
 			authed.POST("/lanes/:id/messages", api.handlePostLaneMessage)
 			authed.GET("/lanes/:id/ws", api.handleLaneWebSocket)
 
 			authed.GET("/lanes/:id/participants", api.handleListLaneParticipants)
+			authed.POST("/lanes/:id/participants", api.handleAddLaneParticipant)
+			authed.DELETE("/lanes/:id/participants/:user_id", api.handleRemoveLaneParticipant)
+			authed.POST("/lanes/:id/leave", api.handleLeaveLane)
+			authed.GET("/lanes/:id/invites/active", api.handleGetActiveLaneInvite)
 			authed.POST("/lanes/:id/invites", api.handleCreateLaneInvite)
-			authed.GET("/lanes/:id/invites", api.handleListLaneInvites)
-			authed.DELETE("/lanes/:id/participants/:user_id", api.handleKickLaneParticipant)
+			authed.POST("/lanes/:id/invites/regenerate", api.handleRegenerateLaneInvite)
+			authed.DELETE("/lanes/:id/invites/active", api.handleRevokeActiveLaneInvite)
 			authed.POST("/lane-invites/:token/accept", api.handleAcceptLaneInvite)
 
 			authed.GET("/organization-members", api.handleListOrganizationMembers)

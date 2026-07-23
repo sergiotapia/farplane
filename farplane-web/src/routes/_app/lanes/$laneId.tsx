@@ -1,5 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, createFileRoute, useRouteContext } from '@tanstack/react-router'
+import {
+  Link,
+  createFileRoute,
+  useNavigate,
+  useRouteContext,
+} from '@tanstack/react-router'
 import { useEffect, useMemo, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
@@ -11,40 +16,72 @@ import {
   ComboboxItem,
   ComboboxList,
 } from '@/components/ui/combobox'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
+  ApiError,
+  addLaneParticipant,
   createLaneInvite,
+  destroyLane,
+  getActiveLaneInvite,
   getLane,
   getLaneAgents,
   getLaneMessages,
   getLaneParticipants,
   getOrganizationMembers,
-  kickLaneParticipant,
+  laneActiveInviteQueryKey,
   laneAgentsQueryKey,
   laneMessagesQueryKey,
   laneParticipantsQueryKey,
   laneQueryKey,
   laneWebSocketURL,
+  lanesQueryKey,
+  leaveLane,
   organizationMembersQueryKey,
   patchLane,
   postLaneMessage,
+  regenerateLaneInvite,
+  removeLaneParticipant,
+  revokeActiveLaneInvite,
   type LaneAgent,
   type LaneMessage,
 } from '@/lib/api'
 
+type LaneSearch = {
+  panel?: 'members'
+}
+
 export const Route = createFileRoute('/_app/lanes/$laneId')({
+  validateSearch: (search: Record<string, unknown>): LaneSearch => ({
+    panel: search.panel === 'members' ? 'members' : undefined,
+  }),
   component: LaneChatPage,
 })
 
 function LaneChatPage() {
   const { laneId } = Route.useParams()
+  const { panel } = Route.useSearch()
+  const navigate = useNavigate({ from: '/_app/lanes/$laneId' })
   const { me } = useRouteContext({ from: '/_app' })
   const queryClient = useQueryClient()
   const [text, setText] = useState('')
   const [partial, setPartial] = useState('')
-  const [inviteEmail, setInviteEmail] = useState('')
-  const [inviteUserId, setInviteUserId] = useState('')
+  const [addMember, setAddMember] = useState<{
+    id: string
+    display_name: string
+    email: string
+  } | null>(null)
+  const [membersError, setMembersError] = useState<string | null>(null)
+
+  const membersOpen = panel === 'members'
 
   const laneQuery = useQuery({
     queryKey: laneQueryKey(laneId),
@@ -65,6 +102,13 @@ function LaneChatPage() {
   const membersQuery = useQuery({
     queryKey: organizationMembersQueryKey,
     queryFn: getOrganizationMembers,
+    enabled: membersOpen,
+  })
+  const activeInviteQuery = useQuery({
+    queryKey: laneActiveInviteQueryKey(laneId),
+    queryFn: () => getActiveLaneInvite(laneId),
+    enabled: membersOpen,
+    retry: false,
   })
 
   const lane = laneQuery.data
@@ -75,6 +119,15 @@ function LaneChatPage() {
     [agentsQuery.data],
   )
   const isOwner = lane?.owner_user_id === me.user.id
+  const seatedIds = useMemo(
+    () => new Set(participants.map((p) => p.user_id)),
+    [participants],
+  )
+  const addableMembers = useMemo(
+    () =>
+      (membersQuery.data?.members ?? []).filter((m) => !seatedIds.has(m.id)),
+    [membersQuery.data, seatedIds],
+  )
 
   const [wsReady, setWsReady] = useState<WebSocket | null>(null)
   const [turnRunning, setTurnRunning] = useState(false)
@@ -131,6 +184,17 @@ function LaneChatPage() {
     }
   }, [laneId, queryClient])
 
+  function closeMembersPanel() {
+    void navigate({ search: { panel: undefined } })
+  }
+
+  async function refreshAfterPeopleChange() {
+    await queryClient.invalidateQueries({
+      queryKey: laneParticipantsQueryKey(laneId),
+    })
+    await queryClient.invalidateQueries({ queryKey: lanesQueryKey })
+  }
+
   const sendMutation = useMutation({
     mutationFn: () => postLaneMessage(laneId, text),
     onSuccess: async () => {
@@ -152,29 +216,72 @@ function LaneChatPage() {
     },
   })
 
-  const inviteMutation = useMutation({
-    mutationFn: () =>
-      createLaneInvite(laneId, {
-        email: inviteEmail.trim() || undefined,
-        user_id: inviteUserId.trim() || undefined,
-      }),
+  const addMutation = useMutation({
+    mutationFn: (userId: string) => addLaneParticipant(laneId, userId),
     onSuccess: async () => {
-      setInviteEmail('')
-      setInviteUserId('')
+      setAddMember(null)
+      setMembersError(null)
+      await refreshAfterPeopleChange()
+    },
+    onError: (err) => {
+      setMembersError(
+        err instanceof ApiError ? err.message : 'Could not add participant',
+      )
+    },
+  })
+
+  const removeMutation = useMutation({
+    mutationFn: (userId: string) => removeLaneParticipant(laneId, userId),
+    onSuccess: async () => {
+      await refreshAfterPeopleChange()
+    },
+  })
+
+  const leaveMutation = useMutation({
+    mutationFn: () => leaveLane(laneId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: lanesQueryKey })
+      await navigate({ to: '/' })
+    },
+  })
+
+  const destroyMutation = useMutation({
+    mutationFn: () => destroyLane(laneId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: lanesQueryKey })
+      await navigate({ to: '/' })
+    },
+  })
+
+  const ensureInviteMutation = useMutation({
+    mutationFn: () => createLaneInvite(laneId),
+    onSuccess: async () => {
       await queryClient.invalidateQueries({
-        queryKey: laneParticipantsQueryKey(laneId),
+        queryKey: laneActiveInviteQueryKey(laneId),
       })
     },
   })
 
-  const kickMutation = useMutation({
-    mutationFn: (userId: string) => kickLaneParticipant(laneId, userId),
+  const regenerateInviteMutation = useMutation({
+    mutationFn: () => regenerateLaneInvite(laneId),
     onSuccess: async () => {
       await queryClient.invalidateQueries({
-        queryKey: laneParticipantsQueryKey(laneId),
+        queryKey: laneActiveInviteQueryKey(laneId),
       })
     },
   })
+
+  const revokeInviteMutation = useMutation({
+    mutationFn: () => revokeActiveLaneInvite(laneId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: laneActiveInviteQueryKey(laneId),
+      })
+    },
+  })
+
+  const activeInvite =
+    activeInviteQuery.isSuccess ? activeInviteQuery.data : null
 
   const timeline = messages.filter(
     (m) =>
@@ -189,7 +296,7 @@ function LaneChatPage() {
     <div className="mx-auto grid w-full max-w-5xl gap-6 lg:grid-cols-[1fr_16rem]">
       <div className="space-y-4">
         <div className="space-y-1">
-          {lane ? (
+          {lane?.project_id ? (
             <p className="text-muted-foreground text-sm">
               <Link
                 to="/projects/$projectId"
@@ -199,6 +306,8 @@ function LaneChatPage() {
                 Project
               </Link>
             </p>
+          ) : lane ? (
+            <p className="text-muted-foreground text-sm">No project</p>
           ) : null}
           <h1 className="text-2xl font-semibold tracking-tight">
             {lane?.name ?? 'Lane'}
@@ -210,6 +319,50 @@ function LaneChatPage() {
             </span>{' '}
             · {lane?.status}
           </p>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => void navigate({ search: { panel: 'members' } })}
+          >
+            Members
+          </Button>
+          {!isOwner ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={leaveMutation.isPending}
+              onClick={() => {
+                if (!window.confirm('Leave this Lane?')) return
+                leaveMutation.mutate()
+              }}
+            >
+              {leaveMutation.isPending ? 'Leaving…' : 'Leave'}
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              size="sm"
+              variant="destructive"
+              disabled={destroyMutation.isPending}
+              onClick={() => {
+                if (
+                  !window.confirm(
+                    'Destroy this Lane? The Runtime computer is removed and the Lane is archived.',
+                  )
+                ) {
+                  return
+                }
+                destroyMutation.mutate()
+              }}
+            >
+              {destroyMutation.isPending ? 'Destroying…' : 'Destroy Lane'}
+            </Button>
+          )}
         </div>
 
         <div className="flex min-h-[360px] flex-col gap-3 rounded-md border p-3">
@@ -253,7 +406,9 @@ function LaneChatPage() {
             <Button
               type="button"
               variant="outline"
-              disabled={!turnRunning || !wsReady || wsReady.readyState !== WebSocket.OPEN}
+              disabled={
+                !turnRunning || !wsReady || wsReady.readyState !== WebSocket.OPEN
+              }
               onClick={() => {
                 wsReady?.send(JSON.stringify({ type: 'interrupt' }))
                 setTurnRunning(false)
@@ -314,77 +469,186 @@ function LaneChatPage() {
         ) : null}
 
         <div className="space-y-2">
-          <h2 className="text-sm font-medium">Participants</h2>
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-sm font-medium">Participants</h2>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={() => void navigate({ search: { panel: 'members' } })}
+            >
+              Manage
+            </Button>
+          </div>
           <ul className="space-y-1 text-sm">
             {participants.map((p) => (
-              <li
-                key={p.id}
-                className="flex items-center justify-between gap-2"
-              >
-                <span className="truncate">
-                  {p.display_name || p.email || p.user_id.slice(0, 8)}
-                  {p.role === 'owner' ? ' · owner' : ''}
-                </span>
-                {isOwner && p.role !== 'owner' ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    disabled={kickMutation.isPending}
-                    onClick={() => kickMutation.mutate(p.user_id)}
-                  >
-                    Kick
-                  </Button>
-                ) : null}
+              <li key={p.id} className="truncate">
+                {p.display_name || p.email || p.user_id.slice(0, 8)}
+                {p.role === 'owner' ? ' · owner' : ''}
               </li>
             ))}
           </ul>
         </div>
+      </aside>
 
-        {isOwner ? (
-          <div className="space-y-2">
-            <h2 className="text-sm font-medium">Invite</h2>
-            <Label htmlFor="invite-user">Org member user id</Label>
-            <Input
-              id="invite-user"
-              list="org-members"
-              value={inviteUserId}
-              onChange={(e) => setInviteUserId(e.target.value)}
-              placeholder="Pick or paste user id"
-            />
-            <datalist id="org-members">
-              {(membersQuery.data?.members ?? []).map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.display_name} ({m.email})
-                </option>
-              ))}
-            </datalist>
-            <Label htmlFor="invite-email">Or email</Label>
-            <Input
-              id="invite-email"
-              type="email"
-              value={inviteEmail}
-              onChange={(e) => setInviteEmail(e.target.value)}
-            />
-            <Button
-              type="button"
-              size="sm"
-              disabled={
-                inviteMutation.isPending ||
-                (!inviteEmail.trim() && !inviteUserId.trim())
-              }
-              onClick={() => inviteMutation.mutate()}
-            >
-              Send invite
-            </Button>
-            {inviteMutation.isError ? (
-              <p className="text-destructive text-xs">
-                {inviteMutation.error.message}
-              </p>
+      <Dialog
+        open={membersOpen}
+        onOpenChange={(open) => {
+          if (!open) closeMembersPanel()
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Members</DialogTitle>
+            <DialogDescription>
+              Add Organization members immediately, or share an open Lane Invite
+              link.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6">
+            <div className="space-y-2">
+              <h3 className="text-sm font-medium">Participants</h3>
+              <ul className="space-y-2 text-sm">
+                {participants.map((p) => (
+                  <li
+                    key={p.id}
+                    className="flex items-center justify-between gap-2"
+                  >
+                    <span className="min-w-0 truncate">
+                      {p.display_name || p.email || p.user_id.slice(0, 8)}
+                      {p.role === 'owner' ? ' · owner' : ''}
+                    </span>
+                    {p.role !== 'owner' && p.user_id !== me.user.id ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        disabled={removeMutation.isPending}
+                        onClick={() => removeMutation.mutate(p.user_id)}
+                      >
+                        Remove
+                      </Button>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Add Organization member</Label>
+              <Combobox
+                items={addableMembers}
+                value={addMember}
+                onValueChange={setAddMember}
+                itemToStringLabel={(m) => `${m.display_name} (${m.email})`}
+                itemToStringValue={(m) => m.id}
+                isItemEqualToValue={(a, b) => a.id === b.id}
+              >
+                <ComboboxInput
+                  placeholder="Select a member"
+                  className="w-full"
+                />
+                <ComboboxContent>
+                  <ComboboxEmpty>No members to add</ComboboxEmpty>
+                  <ComboboxList>
+                    {(m) => (
+                      <ComboboxItem key={m.id} value={m}>
+                        {m.display_name} ({m.email})
+                      </ComboboxItem>
+                    )}
+                  </ComboboxList>
+                </ComboboxContent>
+              </Combobox>
+              <Button
+                type="button"
+                size="sm"
+                disabled={!addMember || addMutation.isPending}
+                onClick={() => {
+                  if (!addMember) return
+                  addMutation.mutate(addMember.id)
+                }}
+              >
+                {addMutation.isPending ? 'Adding…' : 'Add participant'}
+              </Button>
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-sm font-medium">Lane Invite link</h3>
+              {activeInvite ? (
+                <div className="space-y-2">
+                  <Input readOnly value={activeInvite.accept_url} />
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() =>
+                        void navigator.clipboard.writeText(
+                          activeInvite.accept_url,
+                        )
+                      }
+                    >
+                      Copy URL
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={regenerateInviteMutation.isPending}
+                      onClick={() => {
+                        if (
+                          !window.confirm(
+                            'Regenerate the invite link? The old link stops working.',
+                          )
+                        ) {
+                          return
+                        }
+                        regenerateInviteMutation.mutate()
+                      }}
+                    >
+                      Regenerate
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      disabled={revokeInviteMutation.isPending}
+                      onClick={() => revokeInviteMutation.mutate()}
+                    >
+                      Revoke
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={
+                    ensureInviteMutation.isPending ||
+                    activeInviteQuery.isLoading
+                  }
+                  onClick={() => ensureInviteMutation.mutate()}
+                >
+                  {ensureInviteMutation.isPending
+                    ? 'Creating…'
+                    : 'Create invite link'}
+                </Button>
+              )}
+            </div>
+
+            {membersError ? (
+              <p className="text-destructive text-sm">{membersError}</p>
             ) : null}
           </div>
-        ) : null}
-      </aside>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={closeMembersPanel}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

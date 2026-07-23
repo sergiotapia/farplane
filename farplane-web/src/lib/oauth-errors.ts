@@ -13,11 +13,10 @@ const oauthErrorMessages: Record<string, string> = {
   google_oauth_not_configured: 'Google sign-in is not configured on this install.',
   database_unavailable: 'The database is unavailable. Try again later.',
   invalid_intent: 'Google sign-in failed. Try again.',
-  invite_email_mismatch:
-    'That Google account email does not match this Lane invite.',
   invite_unavailable: 'This Lane invite is no longer available.',
   invite_failed: 'Could not accept the Lane invite with Google.',
   invalid_invite: 'This Lane invite link is invalid.',
+  invite_email_mismatch: 'Could not accept the Lane invite with Google.',
 }
 
 const githubErrorMessages: Record<string, string> = {

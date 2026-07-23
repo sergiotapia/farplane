@@ -277,10 +277,6 @@ func (a *api) handleGoogleCallback(c *gin.Context) {
 			SessionExpiresAt: expiresAt,
 		})
 		if err != nil {
-			if errors.Is(err, store.ErrForbidden) {
-				a.redirectLaneInviteOAuthError(c, state.InviteToken, "invite_email_mismatch")
-				return
-			}
 			if errors.Is(err, store.ErrConflict) {
 				a.redirectLaneInviteOAuthError(c, state.InviteToken, "invite_unavailable")
 				return

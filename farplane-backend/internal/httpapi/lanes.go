@@ -19,14 +19,49 @@ import (
 )
 
 type createLaneRequest struct {
-	Name           string `json:"name"`
-	LaneTemplateID string `json:"lane_template_id"`
-	AgentProvider  string `json:"agent_provider"`
+	Name           string  `json:"name"`
+	LaneTemplateID string  `json:"lane_template_id"`
+	AgentProvider  string  `json:"agent_provider"`
+	ProjectID      *string `json:"project_id"`
 }
 
 type patchLaneRequest struct {
 	Name          *string `json:"name"`
 	AgentProvider *string `json:"agent_provider"`
+}
+
+func (a *api) handleListLanes(c *gin.Context) {
+	principal, ok := a.requirePrincipal(c)
+	if !ok {
+		return
+	}
+	grouped, err := a.store.ListLanesGrouped(
+		c.Request.Context(), principal.Organization.ID, principal.User.ID,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list lanes"})
+		return
+	}
+	projects := make([]gin.H, 0, len(grouped.Projects))
+	for _, g := range grouped.Projects {
+		lanes := make([]gin.H, 0, len(g.Lanes))
+		for _, l := range g.Lanes {
+			lanes = append(lanes, laneJSON(l))
+		}
+		projects = append(projects, gin.H{
+			"id":    g.ID,
+			"name":  g.Name,
+			"lanes": lanes,
+		})
+	}
+	scratch := make([]gin.H, 0, len(grouped.ScratchLanes))
+	for _, l := range grouped.ScratchLanes {
+		scratch = append(scratch, laneJSON(l))
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"projects":      projects,
+		"scratch_lanes": scratch,
+	})
 }
 
 func (a *api) handleListProjectLanes(c *gin.Context) {
@@ -55,25 +90,49 @@ func (a *api) handleListProjectLanes(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"lanes": out})
 }
 
-func (a *api) handleCreateLane(c *gin.Context) {
-	principal, ok := a.requirePrincipal(c)
-	if !ok {
-		return
-	}
-	project, err := a.store.GetProject(c.Request.Context(), c.Param("id"))
-	if err != nil {
-		writeStoreError(c, err)
-		return
-	}
-	if project.OrganizationID != principal.Organization.ID {
-		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
-		return
-	}
+func (a *api) handleCreateLaneForProject(c *gin.Context) {
 	var req createLaneRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
+	projectID := c.Param("id")
+	req.ProjectID = &projectID
+	a.createLaneFromRequest(c, req)
+}
+
+func (a *api) handleCreateLaneTopLevel(c *gin.Context) {
+	var req createLaneRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+	a.createLaneFromRequest(c, req)
+}
+
+func (a *api) createLaneFromRequest(c *gin.Context, req createLaneRequest) {
+	principal, ok := a.requirePrincipal(c)
+	if !ok {
+		return
+	}
+
+	var project *models.Project
+	var projectID *string
+	if req.ProjectID != nil && strings.TrimSpace(*req.ProjectID) != "" {
+		pid := strings.TrimSpace(*req.ProjectID)
+		p, err := a.store.GetProject(c.Request.Context(), pid)
+		if err != nil {
+			writeStoreError(c, err)
+			return
+		}
+		if p.OrganizationID != principal.Organization.ID {
+			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+			return
+		}
+		project = &p
+		projectID = &p.ID
+	}
+
 	provider := strings.TrimSpace(req.AgentProvider)
 	if !agents.IsKnownProvider(provider) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid agent_provider"})
@@ -115,7 +174,11 @@ func (a *api) handleCreateLane(c *gin.Context) {
 	if tmpl.ValidatedImageReference != nil && *tmpl.ValidatedImageReference != "" {
 		imageRef = tmpl.ValidatedImageReference
 	} else if a.runtime != nil {
-		tag := "farplane-lane-" + project.ID[:8]
+		tagSuffix := "scratch"
+		if projectID != nil && len(*projectID) >= 8 {
+			tagSuffix = (*projectID)[:8]
+		}
+		tag := "farplane-lane-" + tagSuffix
 		ref, _, buildErr := a.runtime.BuildImage(c.Request.Context(), snapshot, tag)
 		if buildErr != nil {
 			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "failed to build lane image", "detail": buildErr.Error()})
@@ -137,11 +200,17 @@ func (a *api) handleCreateLane(c *gin.Context) {
 		return
 	}
 
+	kind := models.LaneKindScratch
+	if projectID != nil {
+		kind = models.LaneKindProject
+	}
+
 	lane, err := a.store.CreateLane(c.Request.Context(), store.CreateLaneInput{
-		ProjectID:          project.ID,
+		ProjectID:          projectID,
 		OrganizationID:     principal.Organization.ID,
 		OwnerUserID:        principal.User.ID,
 		Name:               name,
+		LaneKind:           kind,
 		LaneTemplateID:     &tmpl.ID,
 		DockerfileSnapshot: snapshot,
 		ImageReference:     imageRef,
@@ -188,13 +257,15 @@ func (a *api) handleCreateLane(c *gin.Context) {
 		}
 		_ = a.runtime.InjectSecrets(c.Request.Context(), inst.ID, secrets)
 		_ = a.runtime.EnsureAgentBridge(c.Request.Context(), inst.ID)
-		if cloneErr := a.cloneProjectIntoLane(c.Request.Context(), inst.ID, project); cloneErr != nil {
-			log.Printf(
-				"lane create git clone failed lane_id=%s project_id=%s err=%v",
-				lane.ID,
-				project.ID,
-				cloneErr,
-			)
+		if kind == models.LaneKindProject && project != nil {
+			if cloneErr := a.cloneProjectIntoLane(c.Request.Context(), inst.ID, *project); cloneErr != nil {
+				log.Printf(
+					"lane create git clone failed lane_id=%s project_id=%s err=%v",
+					lane.ID,
+					project.ID,
+					cloneErr,
+				)
+			}
 		}
 		runtimeID := inst.ID
 		lane, _ = a.store.UpdateLaneRuntime(c.Request.Context(), lane.ID, &runtimeID, imageRef, models.LaneStatusRunning)
@@ -268,11 +339,49 @@ func (a *api) handleGetLane(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
+	if lane.Status == models.LaneStatusDestroyed {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
 	if _, err := a.store.RequireActiveLaneParticipant(c.Request.Context(), lane.ID, principal.User.ID); err != nil {
 		writeStoreError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, laneJSON(lane))
+}
+
+func (a *api) handleDestroyLane(c *gin.Context) {
+	principal, ok := a.requirePrincipal(c)
+	if !ok {
+		return
+	}
+	lane, err := a.store.GetLane(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		writeStoreError(c, err)
+		return
+	}
+	if lane.OrganizationID != principal.Organization.ID {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	if lane.Status == models.LaneStatusDestroyed {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	if _, err := a.store.RequireLaneOwner(c.Request.Context(), lane.ID, principal.User.ID); err != nil {
+		writeStoreError(c, err)
+		return
+	}
+	if a.runtime != nil && lane.RuntimeID != nil && *lane.RuntimeID != "" {
+		if err := a.runtime.Destroy(c.Request.Context(), *lane.RuntimeID); err != nil {
+			log.Printf("lane destroy runtime failed lane_id=%s runtime_id=%s err=%v", lane.ID, *lane.RuntimeID, err)
+		}
+	}
+	if _, err := a.store.DestroyLane(c.Request.Context(), lane.ID); err != nil {
+		writeStoreError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
 
 func (a *api) handlePatchLane(c *gin.Context) {
@@ -286,6 +395,10 @@ func (a *api) handlePatchLane(c *gin.Context) {
 		return
 	}
 	if lane.OrganizationID != principal.Organization.ID {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	if lane.Status == models.LaneStatusDestroyed {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
@@ -352,12 +465,13 @@ func (a *api) handlePatchLane(c *gin.Context) {
 }
 
 func laneJSON(l models.Lane) gin.H {
-	return gin.H{
+	out := gin.H{
 		"id":                        l.ID,
 		"project_id":                l.ProjectID,
 		"organization_id":           l.OrganizationID,
 		"owner_user_id":             l.OwnerUserID,
 		"name":                      l.Name,
+		"lane_kind":                 l.LaneKind,
 		"lane_template_id":          l.LaneTemplateID,
 		"image_reference":           l.ImageReference,
 		"runtime_kind":              l.RuntimeKind,
@@ -368,4 +482,10 @@ func laneJSON(l models.Lane) gin.H {
 		"created_at":                l.CreatedAt,
 		"updated_at":                l.UpdatedAt,
 	}
+	if l.HasOtherParticipants {
+		out["has_other_participants"] = true
+	} else {
+		out["has_other_participants"] = false
+	}
+	return out
 }

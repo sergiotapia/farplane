@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -14,17 +13,16 @@ import (
 	"github.com/farplane/farplane/farplane-backend/internal/models"
 )
 
-// ListLaneParticipants returns all seats (including removed) with optional active-only filter.
-func (s *Store) ListLaneParticipants(ctx context.Context, laneID string, activeOnly bool) ([]models.LaneParticipant, error) {
-	q := `
-		SELECT id, lane_id, user_id, role, joined_at, removed_at, removed_by_user_id
+const laneInviteTTL = 7 * 24 * time.Hour
+
+// ListLaneParticipants returns seats for a lane.
+func (s *Store) ListLaneParticipants(ctx context.Context, laneID string) ([]models.LaneParticipant, error) {
+	const q = `
+		SELECT id, lane_id, user_id, role, joined_at
 		FROM lane_participants
 		WHERE lane_id = $1
+		ORDER BY joined_at ASC
 	`
-	if activeOnly {
-		q += ` AND removed_at IS NULL`
-	}
-	q += ` ORDER BY joined_at ASC`
 	rows, err := s.pool.Query(ctx, q, laneID)
 	if err != nil {
 		return nil, fmt.Errorf("list lane participants: %w", err)
@@ -41,7 +39,7 @@ func (s *Store) ListLaneParticipants(ctx context.Context, laneID string, activeO
 	return out, rows.Err()
 }
 
-// ListOrganizationMembersForInvite returns org members for Lane invite autocomplete.
+// ListOrganizationMembersForInvite returns org members for Lane add-participant autocomplete.
 func (s *Store) ListOrganizationMembersForInvite(ctx context.Context, organizationID string) ([]models.User, error) {
 	const q = `
 		SELECT u.id, u.email, u.password_hash, u.display_name, u.avatar_url, u.created_at, u.updated_at
@@ -66,80 +64,227 @@ func (s *Store) ListOrganizationMembersForInvite(ctx context.Context, organizati
 	return out, rows.Err()
 }
 
-// CreateLaneInviteInput creates a pending invite.
+// OrganizationMemberExists reports whether userID is a member of the organization.
+func (s *Store) OrganizationMemberExists(ctx context.Context, organizationID, userID string) (bool, error) {
+	var exists bool
+	err := s.pool.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM organization_members
+			WHERE organization_id = $1 AND user_id = $2
+		)
+	`, organizationID, userID).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("organization member exists: %w", err)
+	}
+	return exists, nil
+}
+
+// AddLaneParticipant seats an organization member on a lane immediately.
+func (s *Store) AddLaneParticipant(ctx context.Context, laneID, userID string) (models.LaneParticipant, error) {
+	now := time.Now().UTC()
+	const q = `
+		INSERT INTO lane_participants (lane_id, user_id, role, joined_at)
+		VALUES ($1, $2, $3, $4)
+		ON CONFLICT (lane_id, user_id) DO UPDATE SET
+			joined_at = lane_participants.joined_at
+		RETURNING id, lane_id, user_id, role, joined_at
+	`
+	p, err := scanLaneParticipant(s.pool.QueryRow(
+		ctx, q, laneID, userID, models.LaneParticipantRoleParticipant, now,
+	))
+	if err != nil {
+		return models.LaneParticipant{}, fmt.Errorf("add lane participant: %w", err)
+	}
+	return p, nil
+}
+
+// RemoveLaneParticipant hard-deletes a non-owner seat.
+func (s *Store) RemoveLaneParticipant(ctx context.Context, laneID, targetUserID string) error {
+	var role string
+	err := s.pool.QueryRow(ctx, `
+		SELECT role FROM lane_participants
+		WHERE lane_id = $1 AND user_id = $2
+	`, laneID, targetUserID).Scan(&role)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if role == models.LaneParticipantRoleOwner {
+		return ErrConflict
+	}
+	tag, err := s.pool.Exec(ctx, `
+		DELETE FROM lane_participants
+		WHERE lane_id = $1 AND user_id = $2
+	`, laneID, targetUserID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// LeaveLane hard-deletes the caller's non-owner seat.
+func (s *Store) LeaveLane(ctx context.Context, laneID, userID string) error {
+	var role string
+	err := s.pool.QueryRow(ctx, `
+		SELECT role FROM lane_participants
+		WHERE lane_id = $1 AND user_id = $2
+	`, laneID, userID).Scan(&role)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if role == models.LaneParticipantRoleOwner {
+		return ErrConflict
+	}
+	tag, err := s.pool.Exec(ctx, `
+		DELETE FROM lane_participants
+		WHERE lane_id = $1 AND user_id = $2
+	`, laneID, userID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// CreateLaneInviteInput creates an open multi-use invite.
 type CreateLaneInviteInput struct {
 	LaneID          string
-	Email           *string
-	InvitedUserID   *string
 	InvitedByUserID string
 	ExpiresAt       *time.Time
 }
 
-// CreateLaneInvite inserts a pending invite with a random token.
-func (s *Store) CreateLaneInvite(ctx context.Context, in CreateLaneInviteInput) (models.LaneInvite, error) {
-	if in.Email == nil && in.InvitedUserID == nil {
-		return models.LaneInvite{}, fmt.Errorf("email or invited_user_id is required")
+// GetActiveLaneInvite returns the non-revoked, non-expired invite for a lane.
+func (s *Store) GetActiveLaneInvite(ctx context.Context, laneID string) (models.LaneInvite, error) {
+	now := time.Now().UTC()
+	const q = `
+		SELECT id, lane_id, token, invited_by_user_id, expires_at, revoked_at, created_at
+		FROM lane_invites
+		WHERE lane_id = $1
+			AND revoked_at IS NULL
+			AND (expires_at IS NULL OR expires_at > $2)
+		ORDER BY created_at DESC
+		LIMIT 1
+	`
+	inv, err := scanLaneInvite(s.pool.QueryRow(ctx, q, laneID, now))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return models.LaneInvite{}, ErrNotFound
 	}
+	if err != nil {
+		return models.LaneInvite{}, fmt.Errorf("get active lane invite: %w", err)
+	}
+	return inv, nil
+}
+
+// EnsureLaneInvite returns the active invite or mints a new one (7-day expiry).
+func (s *Store) EnsureLaneInvite(ctx context.Context, in CreateLaneInviteInput) (models.LaneInvite, error) {
+	if inv, err := s.GetActiveLaneInvite(ctx, in.LaneID); err == nil {
+		return inv, nil
+	} else if !errors.Is(err, ErrNotFound) {
+		return models.LaneInvite{}, err
+	}
+	// Expired but non-revoked rows still hold the unique index; clear them first.
+	if err := s.RevokeActiveLaneInvite(ctx, in.LaneID); err != nil && !errors.Is(err, ErrNotFound) {
+		return models.LaneInvite{}, err
+	}
+	expires := time.Now().UTC().Add(laneInviteTTL)
+	if in.ExpiresAt != nil {
+		expires = in.ExpiresAt.UTC()
+	}
+	return s.insertLaneInvite(ctx, in.LaneID, in.InvitedByUserID, expires)
+}
+
+// RegenerateLaneInvite revokes the current non-revoked invite and mints a new token.
+func (s *Store) RegenerateLaneInvite(ctx context.Context, laneID, invitedByUserID string) (models.LaneInvite, error) {
+	now := time.Now().UTC()
+	var out models.LaneInvite
+	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `
+			UPDATE lane_invites
+			SET revoked_at = $2
+			WHERE lane_id = $1 AND revoked_at IS NULL
+		`, laneID, now); err != nil {
+			return err
+		}
+		token, err := randomToken(32)
+		if err != nil {
+			return err
+		}
+		expires := now.Add(laneInviteTTL)
+		var invitedBy *string
+		if invitedByUserID != "" {
+			invitedBy = &invitedByUserID
+		}
+		inv, err := scanLaneInvite(tx.QueryRow(ctx, `
+			INSERT INTO lane_invites (
+				lane_id, token, invited_by_user_id, expires_at, created_at
+			) VALUES ($1,$2,$3,$4,$5)
+			RETURNING id, lane_id, token, invited_by_user_id, expires_at, revoked_at, created_at
+		`, laneID, token, invitedBy, expires, now))
+		if err != nil {
+			return fmt.Errorf("insert regenerated lane invite: %w", err)
+		}
+		out = inv
+		return nil
+	})
+	if err != nil {
+		return models.LaneInvite{}, err
+	}
+	return out, nil
+}
+
+// RevokeActiveLaneInvite revokes the current non-revoked invite for a lane.
+func (s *Store) RevokeActiveLaneInvite(ctx context.Context, laneID string) error {
+	tag, err := s.pool.Exec(ctx, `
+		UPDATE lane_invites
+		SET revoked_at = $2
+		WHERE lane_id = $1 AND revoked_at IS NULL
+	`, laneID, time.Now().UTC())
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *Store) insertLaneInvite(ctx context.Context, laneID, invitedByUserID string, expires time.Time) (models.LaneInvite, error) {
 	token, err := randomToken(32)
 	if err != nil {
 		return models.LaneInvite{}, err
 	}
 	now := time.Now().UTC()
 	var invitedBy *string
-	if in.InvitedByUserID != "" {
-		invitedBy = &in.InvitedByUserID
-	}
-	var email *string
-	if in.Email != nil {
-		e := strings.TrimSpace(strings.ToLower(*in.Email))
-		email = &e
+	if invitedByUserID != "" {
+		invitedBy = &invitedByUserID
 	}
 	const q = `
 		INSERT INTO lane_invites (
-			lane_id, token, email, invited_user_id, invited_by_user_id, expires_at, created_at
-		) VALUES ($1,$2,$3,$4,$5,$6,$7)
-		RETURNING id, lane_id, token, email, invited_user_id, invited_by_user_id,
-			expires_at, accepted_at, accepted_by_user_id, revoked_at, created_at
+			lane_id, token, invited_by_user_id, expires_at, created_at
+		) VALUES ($1,$2,$3,$4,$5)
+		RETURNING id, lane_id, token, invited_by_user_id, expires_at, revoked_at, created_at
 	`
-	inv, err := scanLaneInvite(s.pool.QueryRow(
-		ctx, q, in.LaneID, token, email, in.InvitedUserID, invitedBy, in.ExpiresAt, now,
-	))
+	inv, err := scanLaneInvite(s.pool.QueryRow(ctx, q, laneID, token, invitedBy, expires, now))
 	if err != nil {
 		return models.LaneInvite{}, fmt.Errorf("create lane invite: %w", err)
 	}
 	return inv, nil
 }
 
-// ListLaneInvites returns invites for a lane.
-func (s *Store) ListLaneInvites(ctx context.Context, laneID string) ([]models.LaneInvite, error) {
-	const q = `
-		SELECT id, lane_id, token, email, invited_user_id, invited_by_user_id,
-			expires_at, accepted_at, accepted_by_user_id, revoked_at, created_at
-		FROM lane_invites
-		WHERE lane_id = $1
-		ORDER BY created_at DESC
-	`
-	rows, err := s.pool.Query(ctx, q, laneID)
-	if err != nil {
-		return nil, fmt.Errorf("list lane invites: %w", err)
-	}
-	defer rows.Close()
-	var out []models.LaneInvite
-	for rows.Next() {
-		inv, err := scanLaneInvite(rows)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, inv)
-	}
-	return out, rows.Err()
-}
-
 // GetLaneInviteByToken loads an invite by token.
 func (s *Store) GetLaneInviteByToken(ctx context.Context, token string) (models.LaneInvite, error) {
 	const q = `
-		SELECT id, lane_id, token, email, invited_user_id, invited_by_user_id,
-			expires_at, accepted_at, accepted_by_user_id, revoked_at, created_at
+		SELECT id, lane_id, token, invited_by_user_id, expires_at, revoked_at, created_at
 		FROM lane_invites
 		WHERE token = $1
 	`
@@ -153,32 +298,32 @@ func (s *Store) GetLaneInviteByToken(ctx context.Context, token string) (models.
 	return inv, nil
 }
 
-// LaneInvitePreview is the public view of a pending invite (no secrets).
+// LaneInvitePreview is the public view of a Lane Invite (no secrets).
 type LaneInvitePreview struct {
-	Token     string
-	LaneID    string
-	LaneName  string
-	Email     *string
-	ExpiresAt *time.Time
-	Pending   bool
+	Token                 string
+	LaneID                string
+	LaneName              string
+	InvitedByDisplayName  string
+	ExpiresAt             *time.Time
+	Pending               bool
 }
 
 // GetLaneInvitePreview loads a public invite summary by token.
 func (s *Store) GetLaneInvitePreview(ctx context.Context, token string) (LaneInvitePreview, error) {
 	const q = `
-		SELECT i.token, i.lane_id, l.name, i.email, i.expires_at,
-			i.accepted_at, i.revoked_at
+		SELECT i.token, i.lane_id, l.name, COALESCE(u.display_name, ''),
+			i.expires_at, i.revoked_at
 		FROM lane_invites i
 		JOIN lanes l ON l.id = i.lane_id
+		LEFT JOIN users u ON u.id = i.invited_by_user_id
 		WHERE i.token = $1
 	`
 	var (
-		p          LaneInvitePreview
-		acceptedAt *time.Time
-		revokedAt  *time.Time
+		p         LaneInvitePreview
+		revokedAt *time.Time
 	)
 	err := s.pool.QueryRow(ctx, q, token).Scan(
-		&p.Token, &p.LaneID, &p.LaneName, &p.Email, &p.ExpiresAt, &acceptedAt, &revokedAt,
+		&p.Token, &p.LaneID, &p.LaneName, &p.InvitedByDisplayName, &p.ExpiresAt, &revokedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return LaneInvitePreview{}, ErrNotFound
@@ -187,22 +332,20 @@ func (s *Store) GetLaneInvitePreview(ctx context.Context, token string) (LaneInv
 		return LaneInvitePreview{}, fmt.Errorf("get lane invite preview: %w", err)
 	}
 	inv := models.LaneInvite{
-		ExpiresAt:  p.ExpiresAt,
-		AcceptedAt: acceptedAt,
-		RevokedAt:  revokedAt,
+		ExpiresAt: p.ExpiresAt,
+		RevokedAt: revokedAt,
 	}
 	p.Pending = inv.IsPending(time.Now().UTC())
 	return p, nil
 }
 
-// AcceptLaneInvite marks the invite accepted and upserts an active participant.
+// AcceptLaneInvite seats the user (and org membership if needed). Multi-use: does not consume.
 func (s *Store) AcceptLaneInvite(ctx context.Context, token, acceptingUserID string) (models.LaneInvite, error) {
 	now := time.Now().UTC()
 	var out models.LaneInvite
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
 		inv, err := scanLaneInvite(tx.QueryRow(ctx, `
-			SELECT id, lane_id, token, email, invited_user_id, invited_by_user_id,
-				expires_at, accepted_at, accepted_by_user_id, revoked_at, created_at
+			SELECT id, lane_id, token, invited_by_user_id, expires_at, revoked_at, created_at
 			FROM lane_invites
 			WHERE token = $1
 			FOR UPDATE
@@ -216,21 +359,6 @@ func (s *Store) AcceptLaneInvite(ctx context.Context, token, acceptingUserID str
 		if !inv.IsPending(now) {
 			return ErrConflict
 		}
-		if inv.InvitedUserID != nil && *inv.InvitedUserID != acceptingUserID {
-			return ErrForbidden
-		}
-		user, err := scanUser(tx.QueryRow(ctx, `
-			SELECT id, email, password_hash, display_name, avatar_url, created_at, updated_at
-			FROM users WHERE id = $1
-		`, acceptingUserID))
-		if err != nil {
-			return err
-		}
-		if inv.Email != nil && strings.TrimSpace(*inv.Email) != "" {
-			if !strings.EqualFold(user.Email, strings.TrimSpace(*inv.Email)) {
-				return ErrForbidden
-			}
-		}
 		return acceptLaneInviteTx(ctx, tx, inv, acceptingUserID, now, &out)
 	})
 	if err != nil {
@@ -239,7 +367,7 @@ func (s *Store) AcceptLaneInvite(ctx context.Context, token, acceptingUserID str
 	return out, nil
 }
 
-// LaneInviteSignupInput creates a password user and accepts an email Lane invite.
+// LaneInviteSignupInput creates a password user and accepts an open Lane invite.
 type LaneInviteSignupInput struct {
 	Token            string
 	Email            string
@@ -256,14 +384,13 @@ type LaneInviteSignupResult struct {
 	Session models.Session
 }
 
-// SignUpAndAcceptLaneInvite creates a user for an email invite and accepts it.
+// SignUpAndAcceptLaneInvite creates a user and accepts an open Lane invite.
 func (s *Store) SignUpAndAcceptLaneInvite(ctx context.Context, in LaneInviteSignupInput) (LaneInviteSignupResult, error) {
 	now := time.Now().UTC()
 	var out LaneInviteSignupResult
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
 		inv, err := scanLaneInvite(tx.QueryRow(ctx, `
-			SELECT id, lane_id, token, email, invited_user_id, invited_by_user_id,
-				expires_at, accepted_at, accepted_by_user_id, revoked_at, created_at
+			SELECT id, lane_id, token, invited_by_user_id, expires_at, revoked_at, created_at
 			FROM lane_invites
 			WHERE token = $1
 			FOR UPDATE
@@ -276,12 +403,6 @@ func (s *Store) SignUpAndAcceptLaneInvite(ctx context.Context, in LaneInviteSign
 		}
 		if !inv.IsPending(now) {
 			return ErrConflict
-		}
-		if inv.Email == nil || strings.TrimSpace(*inv.Email) == "" {
-			return ErrForbidden
-		}
-		if !strings.EqualFold(strings.TrimSpace(*inv.Email), in.Email) {
-			return ErrForbidden
 		}
 		var exists bool
 		if err := tx.QueryRow(ctx, `
@@ -331,8 +452,7 @@ func (s *Store) CompleteGoogleLaneInvite(ctx context.Context, in LaneInviteGoogl
 	var out LaneInviteSignupResult
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
 		inv, err := scanLaneInvite(tx.QueryRow(ctx, `
-			SELECT id, lane_id, token, email, invited_user_id, invited_by_user_id,
-				expires_at, accepted_at, accepted_by_user_id, revoked_at, created_at
+			SELECT id, lane_id, token, invited_by_user_id, expires_at, revoked_at, created_at
 			FROM lane_invites
 			WHERE token = $1
 			FOR UPDATE
@@ -345,11 +465,6 @@ func (s *Store) CompleteGoogleLaneInvite(ctx context.Context, in LaneInviteGoogl
 		}
 		if !inv.IsPending(now) {
 			return ErrConflict
-		}
-		if inv.Email != nil && strings.TrimSpace(*inv.Email) != "" {
-			if !strings.EqualFold(strings.TrimSpace(*inv.Email), in.Email) {
-				return ErrForbidden
-			}
 		}
 		var userID string
 		err = tx.QueryRow(ctx, `
@@ -392,9 +507,6 @@ func (s *Store) CompleteGoogleLaneInvite(ctx context.Context, in LaneInviteGoogl
 				return err
 			}
 		}
-		if inv.InvitedUserID != nil && *inv.InvitedUserID != user.ID {
-			return ErrForbidden
-		}
 		var accepted models.LaneInvite
 		if err := acceptLaneInviteTx(ctx, tx, inv, user.ID, now, &accepted); err != nil {
 			return err
@@ -421,13 +533,16 @@ func acceptLaneInviteTx(
 	out *models.LaneInvite,
 ) error {
 	lane, err := scanLane(tx.QueryRow(ctx, `
-		SELECT id, project_id, organization_id, owner_user_id, name, lane_template_id,
+		SELECT id, project_id, organization_id, owner_user_id, name, lane_kind, lane_template_id,
 			dockerfile_snapshot, image_reference, runtime_kind, runtime_id, agent_provider,
 			agent_provider_session_id, status, created_at, updated_at
 		FROM lanes WHERE id = $1
 	`, inv.LaneID))
 	if err != nil {
 		return err
+	}
+	if lane.Status == models.LaneStatusDestroyed {
+		return ErrConflict
 	}
 	var memberExists bool
 	if err := tx.QueryRow(ctx, `
@@ -449,83 +564,11 @@ func acceptLaneInviteTx(
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO lane_participants (lane_id, user_id, role, joined_at)
 		VALUES ($1, $2, $3, $4)
-		ON CONFLICT (lane_id, user_id) DO UPDATE SET
-			removed_at = NULL,
-			removed_by_user_id = NULL,
-			joined_at = EXCLUDED.joined_at,
-			role = CASE
-				WHEN lane_participants.role = 'owner' THEN lane_participants.role
-				ELSE EXCLUDED.role
-			END
+		ON CONFLICT (lane_id, user_id) DO NOTHING
 	`, inv.LaneID, acceptingUserID, models.LaneParticipantRoleParticipant, now); err != nil {
 		return err
 	}
-	updated, err := scanLaneInvite(tx.QueryRow(ctx, `
-		UPDATE lane_invites
-		SET accepted_at = $2, accepted_by_user_id = $3
-		WHERE id = $1
-		RETURNING id, lane_id, token, email, invited_user_id, invited_by_user_id,
-			expires_at, accepted_at, accepted_by_user_id, revoked_at, created_at
-	`, inv.ID, now, acceptingUserID))
-	if err != nil {
-		return err
-	}
-	*out = updated
-	return nil
-}
-
-// KickLaneParticipant soft-removes a participant and revokes pending invites for them.
-func (s *Store) KickLaneParticipant(ctx context.Context, laneID, targetUserID, kickedByUserID string) error {
-	now := time.Now().UTC()
-	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
-		var role string
-		err := tx.QueryRow(ctx, `
-			SELECT role FROM lane_participants
-			WHERE lane_id = $1 AND user_id = $2 AND removed_at IS NULL
-		`, laneID, targetUserID).Scan(&role)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrNotFound
-		}
-		if err != nil {
-			return err
-		}
-		if role == models.LaneParticipantRoleOwner {
-			return ErrConflict
-		}
-		tag, err := tx.Exec(ctx, `
-			UPDATE lane_participants
-			SET removed_at = $3, removed_by_user_id = $4
-			WHERE lane_id = $1 AND user_id = $2 AND removed_at IS NULL
-		`, laneID, targetUserID, now, kickedByUserID)
-		if err != nil {
-			return err
-		}
-		if tag.RowsAffected() == 0 {
-			return ErrNotFound
-		}
-		_, err = tx.Exec(ctx, `
-			UPDATE lane_invites
-			SET revoked_at = $3
-			WHERE lane_id = $1 AND invited_user_id = $2
-				AND accepted_at IS NULL AND revoked_at IS NULL
-		`, laneID, targetUserID, now)
-		return err
-	})
-}
-
-// RevokeLaneInvite revokes a pending invite.
-func (s *Store) RevokeLaneInvite(ctx context.Context, inviteID, laneID string) error {
-	tag, err := s.pool.Exec(ctx, `
-		UPDATE lane_invites
-		SET revoked_at = $3
-		WHERE id = $1 AND lane_id = $2 AND accepted_at IS NULL AND revoked_at IS NULL
-	`, inviteID, laneID, time.Now().UTC())
-	if err != nil {
-		return err
-	}
-	if tag.RowsAffected() == 0 {
-		return ErrNotFound
-	}
+	*out = inv
 	return nil
 }
 
@@ -540,8 +583,8 @@ func randomToken(n int) (string, error) {
 func scanLaneInvite(row scannable) (models.LaneInvite, error) {
 	var inv models.LaneInvite
 	err := row.Scan(
-		&inv.ID, &inv.LaneID, &inv.Token, &inv.Email, &inv.InvitedUserID, &inv.InvitedByUserID,
-		&inv.ExpiresAt, &inv.AcceptedAt, &inv.AcceptedByUserID, &inv.RevokedAt, &inv.CreatedAt,
+		&inv.ID, &inv.LaneID, &inv.Token, &inv.InvitedByUserID,
+		&inv.ExpiresAt, &inv.RevokedAt, &inv.CreatedAt,
 	)
 	if err != nil {
 		return models.LaneInvite{}, err
@@ -550,10 +593,6 @@ func scanLaneInvite(row scannable) (models.LaneInvite, error) {
 	if inv.ExpiresAt != nil {
 		u := inv.ExpiresAt.UTC()
 		inv.ExpiresAt = &u
-	}
-	if inv.AcceptedAt != nil {
-		u := inv.AcceptedAt.UTC()
-		inv.AcceptedAt = &u
 	}
 	if inv.RevokedAt != nil {
 		u := inv.RevokedAt.UTC()

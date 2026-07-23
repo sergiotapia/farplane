@@ -1,4 +1,6 @@
-import { useState, type ReactElement } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
+import { useMemo, useState, type ReactElement } from 'react'
 import {
   ChevronRightIcon,
   FolderIcon,
@@ -8,6 +10,10 @@ import {
   UsersIcon,
 } from 'lucide-react'
 
+import {
+  CreateLaneDialog,
+  type CreateLanePrefill,
+} from '@/components/lanes/create-lane-dialog'
 import {
   Collapsible,
   CollapsibleContent,
@@ -33,107 +39,69 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { getLanes, lanesQueryKey, type Lane } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
 type LaneStatus = 'idle' | 'working'
 
-type MockLane = {
-  id: string
-  name: string
-  status: LaneStatus
-  /** True when the current user was invited rather than creating the lane. */
-  invited?: boolean
+function laneStatus(lane: Lane): LaneStatus {
+  return lane.status === 'running' ? 'working' : 'idle'
 }
-
-type MockProjectGroup = {
-  id: string
-  name: string
-  lanes: MockLane[]
-  defaultOpen?: boolean
-}
-
-/** Placeholder data for sidebar UX exploration only. */
-const mockProjectGroups: MockProjectGroup[] = [
-  {
-    id: 'proj-farplane',
-    name: 'farplane',
-    defaultOpen: true,
-    lanes: [
-      { id: 'lane-sidebar', name: 'Sidebar lanes UX', status: 'working' },
-      {
-        id: 'lane-templates',
-        name: 'Lane template editor sync',
-        status: 'idle',
-      },
-      { id: 'lane-chat', name: 'AI chat data flow', status: 'idle' },
-      {
-        id: 'lane-projects',
-        name: 'Projects page repository picker',
-        status: 'idle',
-      },
-      {
-        id: 'lane-github',
-        name: 'GitHub App code review',
-        status: 'idle',
-        invited: true,
-      },
-    ],
-  },
-  {
-    id: 'proj-docs',
-    name: 'docs-site',
-    defaultOpen: true,
-    lanes: [
-      { id: 'lane-landing', name: 'landing-copy', status: 'working' },
-      {
-        id: 'lane-api-ref',
-        name: 'api-reference',
-        status: 'idle',
-        invited: true,
-      },
-    ],
-  },
-  {
-    id: 'proj-billing',
-    name: 'billing-api',
-    defaultOpen: false,
-    lanes: [{ id: 'lane-invoices', name: 'invoice-export', status: 'idle' }],
-  },
-]
-
-const mockUngroupedLanes: MockLane[] = [
-  { id: 'lane-scratch', name: 'scratchpad', status: 'idle' },
-  {
-    id: 'lane-spike',
-    name: 'friday-spike',
-    status: 'working',
-    invited: true,
-  },
-]
 
 export function LanesNav() {
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(
-      mockProjectGroups.map((group) => [group.id, group.defaultOpen ?? true]),
-    ),
-  )
+  const [createOpen, setCreateOpen] = useState(false)
+  const [createPrefill, setCreatePrefill] = useState<CreateLanePrefill>({
+    mode: 'pick',
+  })
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
+
+  const lanesQuery = useQuery({
+    queryKey: lanesQueryKey,
+    queryFn: getLanes,
+  })
+
+  const projectGroups = lanesQuery.data?.projects ?? []
+  const scratchLanes = lanesQuery.data?.scratch_lanes ?? []
+
+  const defaultOpen = useMemo(() => {
+    const entries = projectGroups.map((group) => [
+      group.id,
+      openGroups[group.id] ?? true,
+    ])
+    return Object.fromEntries(entries) as Record<string, boolean>
+  }, [projectGroups, openGroups])
+
+  function openCreate(prefill: CreateLanePrefill) {
+    setCreatePrefill(prefill)
+    setCreateOpen(true)
+  }
 
   return (
-    // First hover waits; once open, sibling lane tooltips show instantly.
-    // Leaving the group long enough (timeout) restores the delay.
     <TooltipProvider delay={200} timeout={400}>
       <SidebarGroup>
         <SidebarGroupLabel>
           <RouteIcon className="size-3.5" />
           <span>Lanes</span>
         </SidebarGroupLabel>
-        <SidebarGroupAction title="New lane" aria-label="New lane">
+        <SidebarGroupAction
+          title="New lane"
+          aria-label="New lane"
+          onClick={() => openCreate({ mode: 'pick' })}
+        >
           <PlusIcon />
         </SidebarGroupAction>
         <SidebarGroupContent>
           <SidebarMenu>
-            {mockProjectGroups.map((group, groupIndex) => {
-              const isOpen = openGroups[group.id] ?? true
+            {lanesQuery.isLoading ? (
+              <SidebarMenuItem>
+                <span className="px-2 text-xs text-sidebar-foreground/55">
+                  Loading lanes…
+                </span>
+              </SidebarMenuItem>
+            ) : null}
+
+            {projectGroups.map((group, groupIndex) => {
+              const isOpen = defaultOpen[group.id] ?? true
               return (
                 <Collapsible
                   key={group.id}
@@ -146,7 +114,9 @@ export function LanesNav() {
                   }
                   className="group/collapsible"
                 >
-                  <SidebarMenuItem className={groupIndex > 0 ? 'mt-2.5' : undefined}>
+                  <SidebarMenuItem
+                    className={groupIndex > 0 ? 'mt-2.5' : undefined}
+                  >
                     <CollapsibleTrigger
                       render={
                         <SidebarMenuButton
@@ -164,6 +134,9 @@ export function LanesNav() {
                       showOnHover
                       title={`New lane in ${group.name}`}
                       aria-label={`New lane in ${group.name}`}
+                      onClick={() =>
+                        openCreate({ mode: 'project', projectId: group.id })
+                      }
                     >
                       <PlusIcon />
                     </SidebarMenuAction>
@@ -173,18 +146,34 @@ export function LanesNav() {
                           <SidebarMenuSubItem key={lane.id}>
                             <LaneTooltip label={lane.name}>
                               <SidebarMenuSubButton
-                                render={<button type="button" />}
+                                render={
+                                  <Link
+                                    to="/lanes/$laneId"
+                                    params={{ laneId: lane.id }}
+                                  />
+                                }
                                 className="w-full translate-x-0"
                               >
-                                <LaneStatusIcon status={lane.status} />
+                                <LaneStatusIcon status={laneStatus(lane)} />
                                 <span className="min-w-0 flex-1 truncate">
                                   {lane.name}
                                 </span>
-                                {lane.invited ? (
-                                  <UsersIcon className="ml-auto shrink-0 opacity-60" />
-                                ) : null}
                               </SidebarMenuSubButton>
                             </LaneTooltip>
+                            {lane.has_other_participants ? (
+                              <SidebarMenuBadge
+                                title="Members"
+                                className="pointer-events-auto"
+                              >
+                                <Link
+                                  to="/lanes/$laneId"
+                                  params={{ laneId: lane.id }}
+                                  search={{ panel: 'members' }}
+                                >
+                                  <UsersIcon className="size-3 opacity-70" />
+                                </Link>
+                              </SidebarMenuBadge>
+                            ) : null}
                           </SidebarMenuSubItem>
                         ))}
                       </SidebarMenuSub>
@@ -194,40 +183,61 @@ export function LanesNav() {
               )
             })}
 
-            {mockUngroupedLanes.length > 0 ? (
-              <>
-              <SidebarMenuItem className="pointer-events-none mt-3">
-                <span className="px-2 text-[11px] font-medium tracking-wide text-sidebar-foreground/45 uppercase">
+            <SidebarMenuItem className="mt-3">
+              <div className="flex items-center justify-between px-2">
+                <span className="text-[11px] font-medium tracking-wide text-sidebar-foreground/45 uppercase">
                   No project
                 </span>
-              </SidebarMenuItem>
-                {mockUngroupedLanes.map((lane) => (
-                  <LaneMenuItem key={lane.id} lane={lane} />
-                ))}
-              </>
-            ) : null}
+                <button
+                  type="button"
+                  title="New scratch lane"
+                  aria-label="New scratch lane"
+                  className="rounded-md p-0.5 text-sidebar-foreground/55 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                  onClick={() => openCreate({ mode: 'scratch' })}
+                >
+                  <PlusIcon className="size-3.5" />
+                </button>
+              </div>
+            </SidebarMenuItem>
+            {scratchLanes.map((lane) => (
+              <LaneMenuItem key={lane.id} lane={lane} />
+            ))}
           </SidebarMenu>
         </SidebarGroupContent>
       </SidebarGroup>
+
+      <CreateLaneDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        prefill={createPrefill}
+      />
     </TooltipProvider>
   )
 }
 
-function LaneMenuItem({ lane }: { lane: MockLane }) {
+function LaneMenuItem({ lane }: { lane: Lane }) {
   return (
     <SidebarMenuItem>
       <LaneTooltip label={lane.name}>
         <SidebarMenuButton
-          render={<button type="button" />}
+          render={
+            <Link to="/lanes/$laneId" params={{ laneId: lane.id }} />
+          }
           className="text-sidebar-foreground/90"
         >
-          <LaneStatusIcon status={lane.status} />
+          <LaneStatusIcon status={laneStatus(lane)} />
           <span className="min-w-0 flex-1 truncate">{lane.name}</span>
         </SidebarMenuButton>
       </LaneTooltip>
-      {lane.invited ? (
-        <SidebarMenuBadge title="Invited">
-          <UsersIcon className="size-3 opacity-70" />
+      {lane.has_other_participants ? (
+        <SidebarMenuBadge title="Members" className="pointer-events-auto">
+          <Link
+            to="/lanes/$laneId"
+            params={{ laneId: lane.id }}
+            search={{ panel: 'members' }}
+          >
+            <UsersIcon className="size-3 opacity-70" />
+          </Link>
         </SidebarMenuBadge>
       ) : null}
     </SidebarMenuItem>

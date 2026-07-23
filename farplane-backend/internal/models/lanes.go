@@ -34,6 +34,12 @@ const (
 	LaneStatusDestroyed = "destroyed"
 )
 
+// Lane kinds: project-backed or scratch (no Project).
+const (
+	LaneKindProject = "project"
+	LaneKindScratch = "scratch"
+)
+
 // Lane participant roles.
 const (
 	LaneParticipantRoleOwner       = "owner"
@@ -101,13 +107,14 @@ type OrganizationSecretMeta struct {
 // Lane is one shared chat thread plus one Runtime computer.
 type Lane struct {
 	ID                     string
-	ProjectID              string
+	ProjectID              *string
 	OrganizationID         string
 	OwnerUserID            string
 	Name                   string
+	LaneKind               string
 	LaneTemplateID         *string
 	DockerfileSnapshot     string
-	ImageReference               *string
+	ImageReference         *string
 	RuntimeKind            string
 	RuntimeID              *string
 	AgentProvider          string
@@ -115,40 +122,33 @@ type Lane struct {
 	Status                 string
 	CreatedAt              time.Time
 	UpdatedAt              time.Time
+	// HasOtherParticipants is set by list queries when another seat exists.
+	HasOtherParticipants bool
 }
 
 // LaneParticipant is a seat on a Lane chat.
 type LaneParticipant struct {
-	ID              string
-	LaneID          string
-	UserID          string
-	Role            string
-	JoinedAt        time.Time
-	RemovedAt       *time.Time
-	RemovedByUserID *string
+	ID       string
+	LaneID   string
+	UserID   string
+	Role     string
+	JoinedAt time.Time
 }
 
-// IsActive reports whether the participant may use the Lane.
-func (p LaneParticipant) IsActive() bool { return p.RemovedAt == nil }
-
-// LaneInvite is a pending seat invite by user id and/or email.
+// LaneInvite is an open multi-use share link for a Lane.
 type LaneInvite struct {
-	ID               string
-	LaneID           string
-	Token            string
-	Email            *string
-	InvitedUserID    *string
-	InvitedByUserID  *string
-	ExpiresAt        *time.Time
-	AcceptedAt       *time.Time
-	AcceptedByUserID *string
-	RevokedAt        *time.Time
-	CreatedAt        time.Time
+	ID              string
+	LaneID          string
+	Token           string
+	InvitedByUserID *string
+	ExpiresAt       *time.Time
+	RevokedAt       *time.Time
+	CreatedAt       time.Time
 }
 
 // IsPending reports whether the invite can still be accepted.
 func (i LaneInvite) IsPending(now time.Time) bool {
-	if i.AcceptedAt != nil || i.RevokedAt != nil {
+	if i.RevokedAt != nil {
 		return false
 	}
 	if i.ExpiresAt != nil && !i.ExpiresAt.After(now) {

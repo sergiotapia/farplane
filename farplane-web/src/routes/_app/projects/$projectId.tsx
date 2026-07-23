@@ -21,6 +21,7 @@ import {
   getProjects,
   laneAgentsQueryKey,
   laneTemplatesQueryKey,
+  lanesQueryKey,
   projectLanesQueryKey,
   projectsQueryKey,
   type LaneAgent,
@@ -72,7 +73,8 @@ function ProjectLanesPage() {
 
   const createMutation = useMutation({
     mutationFn: () =>
-      createLane(projectId, {
+      createLane({
+        project_id: projectId,
         name,
         lane_template_id: template!.id,
         agent_provider: agent!.provider,
@@ -81,6 +83,7 @@ function ProjectLanesPage() {
       await queryClient.invalidateQueries({
         queryKey: projectLanesQueryKey(projectId),
       })
+      await queryClient.invalidateQueries({ queryKey: lanesQueryKey })
     },
   })
 

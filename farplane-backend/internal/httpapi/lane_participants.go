@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -12,26 +11,37 @@ import (
 	"github.com/farplane/farplane/farplane-backend/internal/store"
 )
 
-type createLaneInviteRequest struct {
+type addLaneParticipantRequest struct {
 	UserID string `json:"user_id"`
-	Email  string `json:"email"`
 }
 
-func (a *api) handleListLaneParticipants(c *gin.Context) {
+func (a *api) requireLaneForParticipant(c *gin.Context) (models.Lane, bool) {
 	principal, ok := a.requirePrincipal(c)
 	if !ok {
-		return
+		return models.Lane{}, false
 	}
 	lane, err := a.store.GetLane(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		writeStoreError(c, err)
-		return
+		return models.Lane{}, false
+	}
+	if lane.OrganizationID != principal.Organization.ID || lane.Status == models.LaneStatusDestroyed {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return models.Lane{}, false
 	}
 	if _, err := a.store.RequireActiveLaneParticipant(c.Request.Context(), lane.ID, principal.User.ID); err != nil {
 		writeStoreError(c, err)
+		return models.Lane{}, false
+	}
+	return lane, true
+}
+
+func (a *api) handleListLaneParticipants(c *gin.Context) {
+	lane, ok := a.requireLaneForParticipant(c)
+	if !ok {
 		return
 	}
-	parts, err := a.store.ListLaneParticipants(c.Request.Context(), lane.ID, true)
+	parts, err := a.store.ListLaneParticipants(c.Request.Context(), lane.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list participants"})
 		return
@@ -52,117 +62,80 @@ func (a *api) handleListLaneParticipants(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"participants": out})
 }
 
-func (a *api) handleCreateLaneInvite(c *gin.Context) {
+func (a *api) handleAddLaneParticipant(c *gin.Context) {
 	principal, ok := a.requirePrincipal(c)
 	if !ok {
 		return
 	}
-	lane, err := a.store.GetLane(c.Request.Context(), c.Param("id"))
-	if err != nil {
-		writeStoreError(c, err)
+	lane, ok := a.requireLaneForParticipant(c)
+	if !ok {
 		return
 	}
-	if _, err := a.store.RequireLaneOwner(c.Request.Context(), lane.ID, principal.User.ID); err != nil {
-		writeStoreError(c, err)
-		return
-	}
-	var req createLaneInviteRequest
+	var req addLaneParticipantRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
 	userID := strings.TrimSpace(req.UserID)
-	email := strings.TrimSpace(req.Email)
-	if userID == "" && email == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "user_id or email is required"})
+	if userID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "user_id is required"})
 		return
 	}
-	var invitedUserID *string
-	var invitedEmail *string
-	if userID != "" {
-		// Must be an org member.
-		members, err := a.store.ListOrganizationMembersForInvite(c.Request.Context(), principal.Organization.ID)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list members"})
-			return
-		}
-		found := false
-		for _, m := range members {
-			if m.ID == userID {
-				found = true
-				break
-			}
-		}
-		if !found {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "user is not an organization member"})
-			return
-		}
-		invitedUserID = &userID
+	exists, err := a.store.OrganizationMemberExists(c.Request.Context(), principal.Organization.ID, userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check membership"})
+		return
 	}
-	if email != "" {
-		invitedEmail = &email
+	if !exists {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "user is not an organization member"})
+		return
 	}
-	expires := time.Now().UTC().Add(7 * 24 * time.Hour)
-	inv, err := a.store.CreateLaneInvite(c.Request.Context(), store.CreateLaneInviteInput{
-		LaneID:          lane.ID,
-		Email:           invitedEmail,
-		InvitedUserID:   invitedUserID,
-		InvitedByUserID: principal.User.ID,
-		ExpiresAt:       &expires,
+	p, err := a.store.AddLaneParticipant(c.Request.Context(), lane.ID, userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to add participant"})
+		return
+	}
+	if a.hub != nil {
+		user, _ := a.store.GetUserByID(c.Request.Context(), userID)
+		role := models.LaneMessageRoleSystem
+		body := user.DisplayName + " joined the Lane"
+		uid := userID
+		msg, _ := a.store.InsertLaneMessage(c.Request.Context(), store.InsertLaneMessageInput{
+			LaneID:       lane.ID,
+			EventType:    models.LaneEventParticipantJoined,
+			Role:         &role,
+			AuthorUserID: &uid,
+			Body:         &body,
+		})
+		a.hub.BroadcastMessage(lane.ID, msg)
+	}
+	user, _ := a.store.GetUserByID(c.Request.Context(), p.UserID)
+	c.JSON(http.StatusCreated, gin.H{
+		"id":           p.ID,
+		"lane_id":      p.LaneID,
+		"user_id":      p.UserID,
+		"role":         p.Role,
+		"joined_at":    p.JoinedAt,
+		"display_name": user.DisplayName,
+		"email":        user.Email,
 	})
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create invite"})
-		return
-	}
-	c.JSON(http.StatusCreated, laneInviteJSON(inv, a.cfg.AppBaseURL))
 }
 
-func (a *api) handleListLaneInvites(c *gin.Context) {
+func (a *api) handleRemoveLaneParticipant(c *gin.Context) {
 	principal, ok := a.requirePrincipal(c)
 	if !ok {
 		return
 	}
-	lane, err := a.store.GetLane(c.Request.Context(), c.Param("id"))
-	if err != nil {
-		writeStoreError(c, err)
-		return
-	}
-	if _, err := a.store.RequireLaneOwner(c.Request.Context(), lane.ID, principal.User.ID); err != nil {
-		writeStoreError(c, err)
-		return
-	}
-	invites, err := a.store.ListLaneInvites(c.Request.Context(), lane.ID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list invites"})
-		return
-	}
-	out := make([]gin.H, 0, len(invites))
-	for _, inv := range invites {
-		out = append(out, laneInviteJSON(inv, a.cfg.AppBaseURL))
-	}
-	c.JSON(http.StatusOK, gin.H{"invites": out})
-}
-
-func (a *api) handleKickLaneParticipant(c *gin.Context) {
-	principal, ok := a.requirePrincipal(c)
+	lane, ok := a.requireLaneForParticipant(c)
 	if !ok {
-		return
-	}
-	lane, err := a.store.GetLane(c.Request.Context(), c.Param("id"))
-	if err != nil {
-		writeStoreError(c, err)
-		return
-	}
-	if _, err := a.store.RequireLaneOwner(c.Request.Context(), lane.ID, principal.User.ID); err != nil {
-		writeStoreError(c, err)
 		return
 	}
 	target := c.Param("user_id")
 	if target == principal.User.ID {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "cannot kick yourself"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "cannot remove yourself; use leave"})
 		return
 	}
-	if err := a.store.KickLaneParticipant(c.Request.Context(), lane.ID, target, principal.User.ID); err != nil {
+	if err := a.store.RemoveLaneParticipant(c.Request.Context(), lane.ID, target); err != nil {
 		writeStoreError(c, err)
 		return
 	}
@@ -179,6 +152,100 @@ func (a *api) handleKickLaneParticipant(c *gin.Context) {
 			Payload:   payload,
 		})
 		a.hub.BroadcastMessage(lane.ID, msg)
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func (a *api) handleLeaveLane(c *gin.Context) {
+	principal, ok := a.requirePrincipal(c)
+	if !ok {
+		return
+	}
+	lane, ok := a.requireLaneForParticipant(c)
+	if !ok {
+		return
+	}
+	if err := a.store.LeaveLane(c.Request.Context(), lane.ID, principal.User.ID); err != nil {
+		writeStoreError(c, err)
+		return
+	}
+	if a.hub != nil {
+		a.hub.DropUser(lane.ID, principal.User.ID)
+		role := models.LaneMessageRoleSystem
+		body := principal.User.DisplayName + " left the Lane"
+		uid := principal.User.ID
+		payload, _ := json.Marshal(map[string]any{"user_id": uid})
+		msg, _ := a.store.InsertLaneMessage(c.Request.Context(), store.InsertLaneMessageInput{
+			LaneID:       lane.ID,
+			EventType:    models.LaneEventParticipantRemoved,
+			Role:         &role,
+			AuthorUserID: &uid,
+			Body:         &body,
+			Payload:      payload,
+		})
+		a.hub.BroadcastMessage(lane.ID, msg)
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func (a *api) handleGetActiveLaneInvite(c *gin.Context) {
+	lane, ok := a.requireLaneForParticipant(c)
+	if !ok {
+		return
+	}
+	inv, err := a.store.GetActiveLaneInvite(c.Request.Context(), lane.ID)
+	if err != nil {
+		writeStoreError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, laneInviteJSON(inv, a.cfg.AppBaseURL))
+}
+
+func (a *api) handleCreateLaneInvite(c *gin.Context) {
+	principal, ok := a.requirePrincipal(c)
+	if !ok {
+		return
+	}
+	lane, ok := a.requireLaneForParticipant(c)
+	if !ok {
+		return
+	}
+	inv, err := a.store.EnsureLaneInvite(c.Request.Context(), store.CreateLaneInviteInput{
+		LaneID:          lane.ID,
+		InvitedByUserID: principal.User.ID,
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create invite"})
+		return
+	}
+	c.JSON(http.StatusOK, laneInviteJSON(inv, a.cfg.AppBaseURL))
+}
+
+func (a *api) handleRegenerateLaneInvite(c *gin.Context) {
+	principal, ok := a.requirePrincipal(c)
+	if !ok {
+		return
+	}
+	lane, ok := a.requireLaneForParticipant(c)
+	if !ok {
+		return
+	}
+	inv, err := a.store.RegenerateLaneInvite(c.Request.Context(), lane.ID, principal.User.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to regenerate invite"})
+		return
+	}
+	c.JSON(http.StatusOK, laneInviteJSON(inv, a.cfg.AppBaseURL))
+}
+
+func (a *api) handleRevokeActiveLaneInvite(c *gin.Context) {
+	lane, ok := a.requireLaneForParticipant(c)
+	if !ok {
+		return
+	}
+	if err := a.store.RevokeActiveLaneInvite(c.Request.Context(), lane.ID); err != nil {
+		writeStoreError(c, err)
+		return
 	}
 	c.Status(http.StatusNoContent)
 }
@@ -234,17 +301,13 @@ func (a *api) handleListOrganizationMembers(c *gin.Context) {
 func laneInviteJSON(inv models.LaneInvite, appBaseURL string) gin.H {
 	acceptURL := strings.TrimRight(appBaseURL, "/") + "/lane-invites/" + inv.Token
 	return gin.H{
-		"id":                  inv.ID,
-		"lane_id":             inv.LaneID,
-		"token":               inv.Token,
-		"email":               inv.Email,
-		"invited_user_id":     inv.InvitedUserID,
-		"invited_by_user_id":  inv.InvitedByUserID,
-		"expires_at":          inv.ExpiresAt,
-		"accepted_at":         inv.AcceptedAt,
-		"accepted_by_user_id": inv.AcceptedByUserID,
-		"revoked_at":          inv.RevokedAt,
-		"created_at":          inv.CreatedAt,
-		"accept_url":          acceptURL,
+		"id":                 inv.ID,
+		"lane_id":            inv.LaneID,
+		"token":              inv.Token,
+		"invited_by_user_id": inv.InvitedByUserID,
+		"expires_at":         inv.ExpiresAt,
+		"revoked_at":         inv.RevokedAt,
+		"created_at":         inv.CreatedAt,
+		"accept_url":         acceptURL,
 	}
 }

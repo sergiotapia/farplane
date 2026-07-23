@@ -32,13 +32,13 @@ func (a *api) handleGetLaneInvite(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
-		"token":      preview.Token,
-		"lane_id":    preview.LaneID,
-		"lane_name":  preview.LaneName,
-		"email":      preview.Email,
-		"expires_at": preview.ExpiresAt,
-		"pending":    preview.Pending,
-		"accept_url": strings.TrimRight(a.cfg.AppBaseURL, "/") + "/lane-invites/" + preview.Token,
+		"token":                    preview.Token,
+		"lane_id":                  preview.LaneID,
+		"lane_name":                preview.LaneName,
+		"invited_by_display_name":  preview.InvitedByDisplayName,
+		"expires_at":               preview.ExpiresAt,
+		"pending":                  preview.Pending,
+		"accept_url":               strings.TrimRight(a.cfg.AppBaseURL, "/") + "/lane-invites/" + preview.Token,
 	})
 }
 

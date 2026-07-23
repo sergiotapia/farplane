@@ -327,6 +327,7 @@ export function createProject(payload: {
 export const laneTemplatesQueryKey = ['lane-templates'] as const
 export const secretsQueryKey = ['secrets'] as const
 export const laneAgentsQueryKey = ['lane-agents'] as const
+export const lanesQueryKey = ['lanes'] as const
 export const projectLanesQueryKey = (projectId: string) =>
   ['projects', projectId, 'lanes'] as const
 export const laneQueryKey = (laneId: string) => ['lanes', laneId] as const
@@ -334,6 +335,8 @@ export const laneMessagesQueryKey = (laneId: string) =>
   ['lanes', laneId, 'messages'] as const
 export const laneParticipantsQueryKey = (laneId: string) =>
   ['lanes', laneId, 'participants'] as const
+export const laneActiveInviteQueryKey = (laneId: string) =>
+  ['lanes', laneId, 'invites', 'active'] as const
 export const organizationMembersQueryKey = ['organization-members'] as const
 
 export type LaneTemplate = {
@@ -367,12 +370,15 @@ export type LaneAgent = {
   available: boolean
 }
 
+export type LaneKind = 'project' | 'scratch'
+
 export type Lane = {
   id: string
-  project_id: string
+  project_id?: string | null
   organization_id: string
   owner_user_id: string
   name: string
+  lane_kind: LaneKind
   lane_template_id?: string | null
   image_reference?: string | null
   runtime_kind: string
@@ -380,8 +386,29 @@ export type Lane = {
   agent_provider: string
   agent_provider_session_id?: string | null
   status: string
+  has_other_participants?: boolean
   created_at: string
   updated_at: string
+}
+
+export type GroupedLanes = {
+  projects: Array<{
+    id: string
+    name: string
+    lanes: Lane[]
+  }>
+  scratch_lanes: Lane[]
+}
+
+export type LaneInvite = {
+  id: string
+  lane_id: string
+  token: string
+  invited_by_user_id?: string | null
+  expires_at?: string | null
+  revoked_at?: string | null
+  created_at: string
+  accept_url: string
 }
 
 export type LaneMessage = {
@@ -516,21 +543,23 @@ export function getLaneAgents(): Promise<{ agents: LaneAgent[] }> {
   return apiFetch('/api/v1/lane-agents')
 }
 
+export function getLanes(): Promise<GroupedLanes> {
+  return apiFetch('/api/v1/lanes')
+}
+
 export function getProjectLanes(
   projectId: string,
 ): Promise<{ lanes: Lane[] }> {
   return apiFetch(`/api/v1/projects/${projectId}/lanes`)
 }
 
-export function createLane(
-  projectId: string,
-  payload: {
-    name: string
-    lane_template_id: string
-    agent_provider: string
-  },
-): Promise<Lane> {
-  return apiFetch(`/api/v1/projects/${projectId}/lanes`, {
+export function createLane(payload: {
+  name: string
+  lane_template_id: string
+  agent_provider: string
+  project_id?: string | null
+}): Promise<Lane> {
+  return apiFetch('/api/v1/lanes', {
     method: 'POST',
     body: JSON.stringify(payload),
   })
@@ -538,6 +567,12 @@ export function createLane(
 
 export function getLane(laneId: string): Promise<Lane> {
   return apiFetch(`/api/v1/lanes/${laneId}`)
+}
+
+export async function destroyLane(laneId: string): Promise<void> {
+  await apiFetch(`/api/v1/lanes/${laneId}`, {
+    method: 'DELETE',
+  })
 }
 
 export function patchLane(
@@ -572,17 +607,17 @@ export function getLaneParticipants(
   return apiFetch(`/api/v1/lanes/${laneId}/participants`)
 }
 
-export function createLaneInvite(
+export function addLaneParticipant(
   laneId: string,
-  payload: { user_id?: string; email?: string },
-): Promise<unknown> {
-  return apiFetch(`/api/v1/lanes/${laneId}/invites`, {
+  userId: string,
+): Promise<LaneParticipant> {
+  return apiFetch(`/api/v1/lanes/${laneId}/participants`, {
     method: 'POST',
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ user_id: userId }),
   })
 }
 
-export async function kickLaneParticipant(
+export async function removeLaneParticipant(
   laneId: string,
   userId: string,
 ): Promise<void> {
@@ -591,11 +626,39 @@ export async function kickLaneParticipant(
   })
 }
 
+export async function leaveLane(laneId: string): Promise<void> {
+  await apiFetch(`/api/v1/lanes/${laneId}/leave`, {
+    method: 'POST',
+  })
+}
+
+export function getActiveLaneInvite(laneId: string): Promise<LaneInvite> {
+  return apiFetch(`/api/v1/lanes/${laneId}/invites/active`)
+}
+
+export function createLaneInvite(laneId: string): Promise<LaneInvite> {
+  return apiFetch(`/api/v1/lanes/${laneId}/invites`, {
+    method: 'POST',
+  })
+}
+
+export function regenerateLaneInvite(laneId: string): Promise<LaneInvite> {
+  return apiFetch(`/api/v1/lanes/${laneId}/invites/regenerate`, {
+    method: 'POST',
+  })
+}
+
+export async function revokeActiveLaneInvite(laneId: string): Promise<void> {
+  await apiFetch(`/api/v1/lanes/${laneId}/invites/active`, {
+    method: 'DELETE',
+  })
+}
+
 export type LaneInvitePreview = {
   token: string
   lane_id: string
   lane_name: string
-  email?: string | null
+  invited_by_display_name?: string
   expires_at?: string | null
   pending: boolean
   accept_url: string
@@ -615,7 +678,9 @@ export function signupLaneInvite(
   })
 }
 
-export function acceptLaneInvite(token: string): Promise<{ lane_id?: string }> {
+export function acceptLaneInvite(
+  token: string,
+): Promise<{ lane_id?: string; id?: string }> {
   return apiFetch(`/api/v1/lane-invites/${token}/accept`, {
     method: 'POST',
   })
