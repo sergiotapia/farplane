@@ -30,11 +30,16 @@ function useDocumentColorMode(): 'light' | 'dark' {
   return mode
 }
 
+/** Approx. line height for the editor's text-xs mono styles. */
+const LINE_HEIGHT_PX = 18
+
 type DockerfileEditorProps = {
   id?: string
   value: string
   onChange: (value: string) => void
   className?: string
+  /** Visible editor height in lines. Defaults to ~18. */
+  lines?: number
 }
 
 export function DockerfileEditor({
@@ -42,6 +47,7 @@ export function DockerfileEditor({
   value,
   onChange,
   className,
+  lines = 18,
 }: DockerfileEditorProps) {
   const colorMode = useDocumentColorMode()
 
@@ -56,7 +62,7 @@ export function DockerfileEditor({
     >
       <CodeMirror
         value={value}
-        height="320px"
+        height={`${lines * LINE_HEIGHT_PX}px`}
         theme={colorMode === 'dark' ? githubDark : githubLight}
         extensions={[dockerfileLanguage]}
         basicSetup={{

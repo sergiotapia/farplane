@@ -567,11 +567,10 @@ export async function validateProjectEnvironment(
 
 export function generateProjectEnvironment(
   projectId: string,
-  payload: { model_source?: string; agent_model?: string } = {},
 ): Promise<ProjectEnvironment> {
   return apiFetch(`/api/v1/projects/${projectId}/environment/generate`, {
     method: 'POST',
-    body: JSON.stringify(payload),
+    body: JSON.stringify({}),
   })
 }
 

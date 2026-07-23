@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/gin-gonic/gin"
@@ -16,11 +17,6 @@ import (
 
 type upsertEnvironmentRequest struct {
 	DockerfileText string `json:"dockerfile_text"`
-}
-
-type generateProjectEnvironmentRequest struct {
-	ModelSource *string `json:"model_source"`
-	AgentModel  *string `json:"agent_model"`
 }
 
 func (a *api) handleGetScratchEnvironment(c *gin.Context) {
@@ -227,12 +223,17 @@ func (a *api) handleGenerateProjectEnvironment(c *gin.Context) {
 	if !ok {
 		return
 	}
-	var req generateProjectEnvironmentRequest
-	_ = c.ShouldBindJSON(&req)
+
+	started := time.Now()
+	log.Printf(
+		"project environment generate start project_id=%s repo=%s organization_id=%s",
+		project.ID, project.GitHubFullName, principal.Organization.ID,
+	)
 
 	if _, err := a.store.MarkProjectEnvironmentGenerating(
 		c.Request.Context(), project.ID, principal.Organization.ID, principal.User.ID,
 	); err != nil {
+		log.Printf("project environment generate mark failed project_id=%s err=%v", project.ID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to start generation"})
 		return
 	}
@@ -241,6 +242,7 @@ func (a *api) handleGenerateProjectEnvironment(c *gin.Context) {
 		c.Request.Context(), principal.Organization.ID, a.cfg.SessionSecret,
 	)
 	if err != nil {
+		log.Printf("project environment generate secrets failed project_id=%s err=%v", project.ID, err)
 		_, _ = a.store.CompleteProjectEnvironmentGeneration(
 			c.Request.Context(), project.ID, false, "", "failed to load secrets: "+err.Error(), principal.User.ID,
 		)
@@ -248,8 +250,10 @@ func (a *api) handleGenerateProjectEnvironment(c *gin.Context) {
 		return
 	}
 
+	log.Printf("project environment generate cloning project_id=%s repo=%s", project.ID, project.GitHubFullName)
 	workspace, cleanup, cloneErr := a.cloneProjectForGeneration(c, project)
 	if cloneErr != nil {
+		log.Printf("project environment generate clone failed project_id=%s err=%v", project.ID, cloneErr)
 		env, _ := a.store.CompleteProjectEnvironmentGeneration(
 			c.Request.Context(), project.ID, false, "", "clone failed: "+cloneErr.Error(), principal.User.ID,
 		)
@@ -262,27 +266,29 @@ func (a *api) handleGenerateProjectEnvironment(c *gin.Context) {
 	if cleanup != nil {
 		defer cleanup()
 	}
-
-	modelSource := ""
-	if req.ModelSource != nil {
-		modelSource = strings.TrimSpace(*req.ModelSource)
-	}
-	agentModel := ""
-	if req.AgentModel != nil {
-		agentModel = strings.TrimSpace(*req.AgentModel)
-	}
+	log.Printf(
+		"project environment generate clone ok project_id=%s workspace=%s",
+		project.ID, workspace,
+	)
 
 	gen := a.environmentGenerator()
 	result, genErr := gen.Generate(c.Request.Context(), envgen.Request{
 		WorkspaceDir: workspace,
 		RepoFullName: project.GitHubFullName,
 		Secrets:      secrets,
-		ModelSource:  modelSource,
-		AgentModel:   agentModel,
 	})
 	if genErr != nil {
+		log.Printf(
+			"project environment generate failed project_id=%s elapsed=%s err=%v",
+			project.ID, time.Since(started).Round(time.Millisecond), genErr,
+		)
+		generationLog := result.Log
+		if generationLog != "" {
+			generationLog += "\n"
+		}
+		generationLog += genErr.Error()
 		env, _ := a.store.CompleteProjectEnvironmentGeneration(
-			c.Request.Context(), project.ID, false, "", genErr.Error(), principal.User.ID,
+			c.Request.Context(), project.ID, false, "", generationLog, principal.User.ID,
 		)
 		c.JSON(http.StatusUnprocessableEntity, gin.H{
 			"error":               "environment generation failed",
@@ -294,6 +300,7 @@ func (a *api) handleGenerateProjectEnvironment(c *gin.Context) {
 	lintOK, lintLog := runDockerfileLint(c.Request.Context(), result.DockerfileText)
 	generationLog := result.Log
 	if !lintOK {
+		log.Printf("project environment generate lint failed project_id=%s", project.ID)
 		generationLog += "\nDockerfile lint failed after generation:\n" + lintLog
 		env, _ := a.store.CompleteProjectEnvironmentGeneration(
 			c.Request.Context(), project.ID, false, "", generationLog, principal.User.ID,
@@ -313,9 +320,29 @@ func (a *api) handleGenerateProjectEnvironment(c *gin.Context) {
 		c.Request.Context(), project.ID, true, result.DockerfileText, generationLog, principal.User.ID,
 	)
 	if err != nil {
+		log.Printf("project environment generate save failed project_id=%s err=%v", project.ID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save generated environment"})
 		return
 	}
+	// Generate already proved the image builds; mark valid with the built reference.
+	if imageRef := strings.TrimSpace(result.ImageReference); imageRef != "" {
+		validationLog := result.BuildLog
+		if validationLog == "" {
+			validationLog = "Validated during environment generation"
+		}
+		env, err = a.store.CompleteProjectEnvironmentValidation(
+			c.Request.Context(), project.ID, true, imageRef, validationLog,
+		)
+		if err != nil {
+			log.Printf("project environment generate mark valid failed project_id=%s err=%v", project.ID, err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to mark environment valid"})
+			return
+		}
+	}
+	log.Printf(
+		"project environment generate ok project_id=%s elapsed=%s image=%s",
+		project.ID, time.Since(started).Round(time.Millisecond), result.ImageReference,
+	)
 	c.JSON(http.StatusOK, projectEnvironmentJSON(env))
 }
 
@@ -369,7 +396,11 @@ func (a *api) environmentGenerator() envgen.Generator {
 	if a.envGenerator != nil {
 		return a.envGenerator
 	}
-	return envgen.New()
+	svc := envgen.New()
+	if a.runtime != nil {
+		svc.BuildImage = a.runtime.BuildImage
+	}
+	return svc
 }
 
 func scratchEnvironmentJSON(env models.ScratchEnvironment) gin.H {

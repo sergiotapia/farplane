@@ -1,40 +1,23 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, createFileRoute } from '@tanstack/react-router'
 import { Check, Hammer, Save, Sparkles } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { DockerfileEditor } from '@/components/dockerfile-editor'
 import { Button } from '@/components/ui/button'
 import {
-  Combobox,
-  ComboboxContent,
-  ComboboxEmpty,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxList,
-} from '@/components/ui/combobox'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import {
   ApiError,
-  createLane,
   generateProjectEnvironment,
-  getLaneAgents,
   getProjectEnvironment,
-  getProjectLanes,
   getProjects,
-  laneAgentsQueryKey,
-  lanesQueryKey,
   projectEnvironmentQueryKey,
-  projectLanesQueryKey,
   projectsQueryKey,
   upsertProjectEnvironment,
   validateProjectEnvironment,
-  type LaneAgent,
 } from '@/lib/api'
 
 export const Route = createFileRoute('/_app/projects/$projectId')({
-  component: ProjectLanesPage,
+  component: ProjectEnvironmentPage,
 })
 
 function lintLogFromError(error: unknown): string | null {
@@ -45,11 +28,9 @@ function lintLogFromError(error: unknown): string | null {
   return typeof log === 'string' && log.trim() ? log : null
 }
 
-function ProjectLanesPage() {
+function ProjectEnvironmentPage() {
   const { projectId } = Route.useParams()
   const queryClient = useQueryClient()
-  const [name, setName] = useState('Lane')
-  const [agent, setAgent] = useState<LaneAgent | null>(null)
   const [dockerfileText, setDockerfileText] = useState('')
   const [lintLog, setLintLog] = useState<string | null>(null)
   const [generationLog, setGenerationLog] = useState<string | null>(null)
@@ -60,26 +41,11 @@ function ProjectLanesPage() {
   })
   const project = projectsQuery.data?.projects.find((p) => p.id === projectId)
 
-  const lanesQuery = useQuery({
-    queryKey: projectLanesQueryKey(projectId),
-    queryFn: () => getProjectLanes(projectId),
-  })
-
   const envQuery = useQuery({
     queryKey: projectEnvironmentQueryKey(projectId),
     queryFn: () => getProjectEnvironment(projectId),
   })
   const env = envQuery.data ?? null
-
-  const agentsQuery = useQuery({
-    queryKey: laneAgentsQueryKey,
-    queryFn: getLaneAgents,
-  })
-
-  const availableAgents = useMemo(
-    () => (agentsQuery.data?.agents ?? []).filter((a) => a.available),
-    [agentsQuery.data],
-  )
 
   useEffect(() => {
     if (!env) {
@@ -142,26 +108,11 @@ function ProjectLanesPage() {
     },
   })
 
-  const createMutation = useMutation({
-    mutationFn: () =>
-      createLane({
-        project_id: projectId,
-        name,
-        agent_provider: agent!.provider,
-      }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: projectLanesQueryKey(projectId),
-      })
-      await queryClient.invalidateQueries({ queryKey: lanesQueryKey })
-    },
-  })
-
-  const lanes = lanesQuery.data?.lanes ?? []
   const hasEnvironment = !!env
   const envValid = env?.validation_status === 'valid'
-  const dirty = env ? dockerfileText !== env.dockerfile_text : dockerfileText.trim().length > 0
-  const canCreateLane = hasEnvironment && envValid && !!agent && !dirty
+  const dirty = env
+    ? dockerfileText !== env.dockerfile_text
+    : dockerfileText.trim().length > 0
 
   return (
     <div className="mx-auto w-full max-w-4xl space-y-8">
@@ -175,8 +126,8 @@ function ProjectLanesPage() {
           {project?.name ?? 'Project'}
         </h1>
         <p className="text-muted-foreground text-sm">
-          Set up the Project Environment Dockerfile, validate it, then create
-          Lanes that run in that sandbox.
+          Configure the Project Environment Dockerfile that Lanes for this
+          Project run in.
         </p>
       </div>
 
@@ -185,7 +136,7 @@ function ProjectLanesPage() {
           <h2 className="text-lg font-medium">Project Environment</h2>
           <p className="text-muted-foreground text-sm">
             {hasEnvironment
-              ? 'Edit the Dockerfile for this Project, then validate before creating Lanes.'
+              ? 'Edit the Dockerfile for this Project, then validate it.'
               : 'This Project has no environment yet. Generate one from the GitHub repository, or paste a Dockerfile and save.'}
           </p>
         </div>
@@ -257,6 +208,7 @@ function ProjectLanesPage() {
           id="project-dockerfile"
           value={dockerfileText}
           onChange={setDockerfileText}
+          lines={36}
         />
 
         {generationLog ? (
@@ -270,102 +222,6 @@ function ProjectLanesPage() {
           </pre>
         ) : null}
       </section>
-
-      <form
-        className="space-y-4 rounded-md border p-4"
-        onSubmit={(e) => {
-          e.preventDefault()
-          if (!canCreateLane) return
-          createMutation.mutate()
-        }}
-      >
-        <div className="space-y-1">
-          <h2 className="text-lg font-medium">Create Lane</h2>
-          <p className="text-muted-foreground text-sm">
-            Requires a validated Project Environment and an agent whose secret
-            is set.
-          </p>
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="lane-name">Name</Label>
-          <Input
-            id="lane-name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label>Agent</Label>
-          <Combobox
-            items={availableAgents}
-            value={agent}
-            onValueChange={setAgent}
-            itemToStringLabel={(a) => a.label}
-            itemToStringValue={(a) => a.provider}
-            isItemEqualToValue={(a, b) => a.provider === b.provider}
-          >
-            <ComboboxInput
-              placeholder="Select an available agent"
-              className="w-full"
-            />
-            <ComboboxContent>
-              <ComboboxEmpty>
-                {availableAgents.length === 0
-                  ? 'No agents available — set keys in Settings → Secrets'
-                  : 'No match'}
-              </ComboboxEmpty>
-              <ComboboxList>
-                {(a) => (
-                  <ComboboxItem key={a.provider} value={a}>
-                    {a.label}
-                  </ComboboxItem>
-                )}
-              </ComboboxList>
-            </ComboboxContent>
-          </Combobox>
-        </div>
-        <Button type="submit" disabled={!canCreateLane || createMutation.isPending}>
-          {createMutation.isPending ? 'Creating…' : 'Create Lane'}
-        </Button>
-        {!hasEnvironment ? (
-          <p className="text-muted-foreground text-sm">
-            Generate or save a Project Environment first.
-          </p>
-        ) : !envValid || dirty ? (
-          <p className="text-muted-foreground text-sm">
-            Save and validate the Project Environment before creating a Lane.
-          </p>
-        ) : null}
-        {createMutation.isError ? (
-          <p className="text-destructive text-sm">
-            {createMutation.error.message}
-          </p>
-        ) : null}
-      </form>
-
-      <div className="space-y-3">
-        <h2 className="text-lg font-medium">Lanes</h2>
-        {lanes.length === 0 ? (
-          <p className="text-muted-foreground text-sm">No lanes yet.</p>
-        ) : (
-          <ul className="space-y-2">
-            {lanes.map((lane) => (
-              <li key={lane.id}>
-                <Link
-                  to="/lanes/$laneId"
-                  params={{ laneId: lane.id }}
-                  className="hover:bg-muted/60 flex items-center justify-between rounded-md border px-3 py-2 text-sm"
-                >
-                  <span className="font-medium">{lane.name}</span>
-                  <span className="text-muted-foreground text-xs">
-                    {lane.agent_provider} · {lane.status}
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
     </div>
   )
 }

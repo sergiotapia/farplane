@@ -18,9 +18,11 @@ import (
 )
 
 type stubGenerator struct {
-	dockerfile string
-	log        string
-	err        error
+	dockerfile     string
+	log            string
+	imageReference string
+	buildLog       string
+	err            error
 }
 
 func (s stubGenerator) Generate(ctx context.Context, req envgen.Request) (envgen.Result, error) {
@@ -29,7 +31,12 @@ func (s stubGenerator) Generate(ctx context.Context, req envgen.Request) (envgen
 	if s.err != nil {
 		return envgen.Result{}, s.err
 	}
-	return envgen.Result{DockerfileText: s.dockerfile, Log: s.log}, nil
+	return envgen.Result{
+		DockerfileText: s.dockerfile,
+		Log:            s.log,
+		ImageReference: s.imageReference,
+		BuildLog:       s.buildLog,
+	}, nil
 }
 
 func TestScratchEnvironmentGetUpsertValidate(t *testing.T) {
@@ -89,8 +96,10 @@ func TestProjectEnvironmentGenerateAndLaneCreate(t *testing.T) {
 		testConfig(),
 		httpapi.WithRuntime(rt),
 		httpapi.WithEnvironmentGenerator(stubGenerator{
-			dockerfile: base,
-			log:        "stub discovery",
+			dockerfile:     base,
+			log:            "stub discovery",
+			imageReference: "farplane-envgen:stub",
+			buildLog:       "build ok during generate",
 		}),
 		httpapi.WithProjectWorkspaceClone(func(ctx context.Context, project models.Project) (string, func(), error) {
 			_ = ctx
@@ -160,16 +169,14 @@ func TestProjectEnvironmentGenerateAndLaneCreate(t *testing.T) {
 	if env["generation_status"] != models.EnvironmentGenerationIdle {
 		t.Fatalf("generation_status = %#v", env["generation_status"])
 	}
+	if env["validation_status"] != models.EnvironmentValidationValid {
+		t.Fatalf("generate should mark valid, got %#v", env["validation_status"])
+	}
+	if env["validated_image_reference"] != "farplane-envgen:stub" {
+		t.Fatalf("validated_image_reference = %#v", env["validated_image_reference"])
+	}
 	if !strings.Contains(env["dockerfile_text"].(string), "FROM debian:bookworm-slim") {
 		t.Fatalf("dockerfile = %#v", env["dockerfile_text"])
-	}
-
-	valReq := httptest.NewRequest(http.MethodPost, "/api/v1/projects/"+project.ID+"/environment/validate", nil)
-	valReq.AddCookie(cookie)
-	valRec := httptest.NewRecorder()
-	engine.ServeHTTP(valRec, valReq)
-	if valRec.Code != http.StatusOK {
-		t.Fatalf("validate project env = %d body=%s", valRec.Code, valRec.Body.String())
 	}
 
 	lane := createLaneHTTP(t, engine, cookie, map[string]any{
