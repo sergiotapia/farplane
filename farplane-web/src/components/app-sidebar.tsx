@@ -5,7 +5,6 @@ import {
   FolderKanbanIcon,
   GitBranchIcon,
   HomeIcon,
-  InfoIcon,
   KeyRoundIcon,
   LogOutIcon,
   SettingsIcon,
@@ -32,7 +31,6 @@ import { meQueryKey, postLogout } from '@/lib/api'
 const mainNavItems = [
   { to: '/', label: 'Home', icon: HomeIcon },
   { to: '/projects', label: 'Projects', icon: FolderKanbanIcon },
-  { to: '/about', label: 'About', icon: InfoIcon },
 ] as const
 
 const settingsNavItems = [

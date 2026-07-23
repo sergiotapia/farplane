@@ -13,7 +13,6 @@ import { Route as AppRouteImport } from './routes/_app'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as SetupRouteImport } from './routes/setup'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
-import { Route as AppAboutRouteImport } from './routes/_app/about'
 import { Route as AppProjectsRouteImport } from './routes/_app/projects'
 import { Route as LaneInvitesTokenRouteImport } from './routes/lane-invites/$token'
 import { Route as AppLanesLaneIdRouteImport } from './routes/_app/lanes/$laneId'
@@ -40,11 +39,6 @@ const SetupRoute = SetupRouteImport.update({
 const AppIndexRoute = AppIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppAboutRoute = AppAboutRouteImport.update({
-  id: '/about',
-  path: '/about',
   getParentRoute: () => AppRoute,
 } as any)
 const AppProjectsRoute = AppProjectsRouteImport.update({
@@ -94,7 +88,6 @@ export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/login': typeof LoginRoute
   '/setup': typeof SetupRoute
-  '/about': typeof AppAboutRoute
   '/projects': typeof AppProjectsRouteWithChildren
   '/lane-invites/$token': typeof LaneInvitesTokenRoute
   '/lanes/$laneId': typeof AppLanesLaneIdRoute
@@ -107,7 +100,6 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/setup': typeof SetupRoute
-  '/about': typeof AppAboutRoute
   '/projects': typeof AppProjectsRouteWithChildren
   '/lane-invites/$token': typeof LaneInvitesTokenRoute
   '/': typeof AppIndexRoute
@@ -123,7 +115,6 @@ export interface FileRoutesById {
   '/_app': typeof AppRouteWithChildren
   '/login': typeof LoginRoute
   '/setup': typeof SetupRoute
-  '/_app/about': typeof AppAboutRoute
   '/_app/projects': typeof AppProjectsRouteWithChildren
   '/lane-invites/$token': typeof LaneInvitesTokenRoute
   '/_app/': typeof AppIndexRoute
@@ -140,7 +131,6 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/setup'
-    | '/about'
     | '/projects'
     | '/lane-invites/$token'
     | '/lanes/$laneId'
@@ -153,7 +143,6 @@ export interface FileRouteTypes {
   to:
     | '/login'
     | '/setup'
-    | '/about'
     | '/projects'
     | '/lane-invites/$token'
     | '/'
@@ -168,7 +157,6 @@ export interface FileRouteTypes {
     | '/_app'
     | '/login'
     | '/setup'
-    | '/_app/about'
     | '/_app/projects'
     | '/lane-invites/$token'
     | '/_app/'
@@ -215,13 +203,6 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof AppIndexRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/about': {
-      id: '/_app/about'
-      path: '/about'
-      fullPath: '/about'
-      preLoaderRoute: typeof AppAboutRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/projects': {
@@ -296,7 +277,6 @@ const AppProjectsRouteWithChildren = AppProjectsRoute._addFileChildren(
 )
 
 interface AppRouteChildren {
-  AppAboutRoute: typeof AppAboutRoute
   AppProjectsRoute: typeof AppProjectsRouteWithChildren
   AppIndexRoute: typeof AppIndexRoute
   AppLanesLaneIdRoute: typeof AppLanesLaneIdRoute
@@ -307,7 +287,6 @@ interface AppRouteChildren {
 }
 
 const AppRouteChildren: AppRouteChildren = {
-  AppAboutRoute: AppAboutRoute,
   AppProjectsRoute: AppProjectsRouteWithChildren,
   AppIndexRoute: AppIndexRoute,
   AppLanesLaneIdRoute: AppLanesLaneIdRoute,
