@@ -10,8 +10,10 @@ import (
 
 	"github.com/farplane/farplane/farplane-backend/internal/agents"
 	"github.com/farplane/farplane/farplane-backend/internal/config"
+	"github.com/farplane/farplane/farplane-backend/internal/envgen"
 	"github.com/farplane/farplane/farplane-backend/internal/githubapp"
 	"github.com/farplane/farplane/farplane-backend/internal/lanehub"
+	"github.com/farplane/farplane/farplane-backend/internal/models"
 	"github.com/farplane/farplane/farplane-backend/internal/runtime"
 	dockerruntime "github.com/farplane/farplane/farplane-backend/internal/runtime/docker"
 	"github.com/farplane/farplane/farplane-backend/internal/store"
@@ -48,6 +50,22 @@ func WithRuntime(rt runtime.Runtime) Option {
 func WithAgentCatalog(catalog *agents.ModelCatalog) Option {
 	return func(a *api) {
 		a.catalog = catalog
+	}
+}
+
+// WithEnvironmentGenerator injects a Project Environment generator (tests).
+func WithEnvironmentGenerator(gen envgen.Generator) Option {
+	return func(a *api) {
+		a.envGenerator = gen
+	}
+}
+
+// WithProjectWorkspaceClone injects a repo checkout for environment generation (tests).
+func WithProjectWorkspaceClone(
+	fn func(ctx context.Context, project models.Project) (string, func(), error),
+) Option {
+	return func(a *api) {
+		a.cloneProjectWorkspace = fn
 	}
 }
 
@@ -113,13 +131,14 @@ func New(pool *pgxpool.Pool, cfg config.Config, opts ...Option) *gin.Engine {
 			authed.POST("/projects", api.handleCreateProject)
 			authed.GET("/projects/:id", api.handleGetProject)
 
-			authed.GET("/lane-templates", api.handleListLaneTemplates)
-			authed.POST("/lane-templates", api.handleCreateLaneTemplate)
-			authed.GET("/lane-templates/:id", api.handleGetLaneTemplate)
-			authed.PATCH("/lane-templates/:id", api.handleUpdateLaneTemplate)
-			authed.DELETE("/lane-templates/:id", api.handleDeleteLaneTemplate)
-			authed.POST("/lane-templates/:id/fork", api.handleForkLaneTemplate)
-			authed.POST("/lane-templates/:id/validate", api.handleValidateLaneTemplate)
+			authed.GET("/scratch-environment", api.handleGetScratchEnvironment)
+			authed.PUT("/scratch-environment", api.handleUpsertScratchEnvironment)
+			authed.POST("/scratch-environment/validate", api.handleValidateScratchEnvironment)
+
+			authed.GET("/projects/:id/environment", api.handleGetProjectEnvironment)
+			authed.PUT("/projects/:id/environment", api.handleUpsertProjectEnvironment)
+			authed.POST("/projects/:id/environment/validate", api.handleValidateProjectEnvironment)
+			authed.POST("/projects/:id/environment/generate", api.handleGenerateProjectEnvironment)
 
 			authed.GET("/secrets", api.handleListSecrets)
 			authed.PUT("/secrets/:name", api.handleSetSecret)

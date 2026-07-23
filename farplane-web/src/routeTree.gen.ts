@@ -19,11 +19,9 @@ import { Route as LaneInvitesTokenRouteImport } from './routes/lane-invites/$tok
 import { Route as AppLanesLaneIdRouteImport } from './routes/_app/lanes/$laneId'
 import { Route as AppProjectsProjectIdRouteImport } from './routes/_app/projects/$projectId'
 import { Route as AppSettingsGithubRouteImport } from './routes/_app/settings/github'
-import { Route as AppSettingsLaneTemplatesRouteImport } from './routes/_app/settings/lane-templates'
+import { Route as AppSettingsScratchEnvironmentRouteImport } from './routes/_app/settings/scratch-environment'
 import { Route as AppSettingsSecretsRouteImport } from './routes/_app/settings/secrets'
 import { Route as AppLaneInvitesTokenAcceptRouteImport } from './routes/_app/lane-invites/$token/accept'
-import { Route as AppSettingsLaneTemplatesIndexRouteImport } from './routes/_app/settings/lane-templates/index'
-import { Route as AppSettingsLaneTemplatesTemplateIdRouteImport } from './routes/_app/settings/lane-templates/$templateId'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -74,10 +72,10 @@ const AppSettingsGithubRoute = AppSettingsGithubRouteImport.update({
   path: '/settings/github',
   getParentRoute: () => AppRoute,
 } as any)
-const AppSettingsLaneTemplatesRoute =
-  AppSettingsLaneTemplatesRouteImport.update({
-    id: '/settings/lane-templates',
-    path: '/settings/lane-templates',
+const AppSettingsScratchEnvironmentRoute =
+  AppSettingsScratchEnvironmentRouteImport.update({
+    id: '/settings/scratch-environment',
+    path: '/settings/scratch-environment',
     getParentRoute: () => AppRoute,
   } as any)
 const AppSettingsSecretsRoute = AppSettingsSecretsRouteImport.update({
@@ -91,18 +89,6 @@ const AppLaneInvitesTokenAcceptRoute =
     path: '/lane-invites/$token/accept',
     getParentRoute: () => AppRoute,
   } as any)
-const AppSettingsLaneTemplatesIndexRoute =
-  AppSettingsLaneTemplatesIndexRouteImport.update({
-    id: '/',
-    path: '/',
-    getParentRoute: () => AppSettingsLaneTemplatesRoute,
-  } as any)
-const AppSettingsLaneTemplatesTemplateIdRoute =
-  AppSettingsLaneTemplatesTemplateIdRouteImport.update({
-    id: '/$templateId',
-    path: '/$templateId',
-    getParentRoute: () => AppSettingsLaneTemplatesRoute,
-  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
@@ -114,11 +100,9 @@ export interface FileRoutesByFullPath {
   '/lanes/$laneId': typeof AppLanesLaneIdRoute
   '/projects/$projectId': typeof AppProjectsProjectIdRoute
   '/settings/github': typeof AppSettingsGithubRoute
-  '/settings/lane-templates': typeof AppSettingsLaneTemplatesRouteWithChildren
+  '/settings/scratch-environment': typeof AppSettingsScratchEnvironmentRoute
   '/settings/secrets': typeof AppSettingsSecretsRoute
   '/lane-invites/$token/accept': typeof AppLaneInvitesTokenAcceptRoute
-  '/settings/lane-templates/$templateId': typeof AppSettingsLaneTemplatesTemplateIdRoute
-  '/settings/lane-templates/': typeof AppSettingsLaneTemplatesIndexRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
@@ -130,10 +114,9 @@ export interface FileRoutesByTo {
   '/lanes/$laneId': typeof AppLanesLaneIdRoute
   '/projects/$projectId': typeof AppProjectsProjectIdRoute
   '/settings/github': typeof AppSettingsGithubRoute
+  '/settings/scratch-environment': typeof AppSettingsScratchEnvironmentRoute
   '/settings/secrets': typeof AppSettingsSecretsRoute
   '/lane-invites/$token/accept': typeof AppLaneInvitesTokenAcceptRoute
-  '/settings/lane-templates/$templateId': typeof AppSettingsLaneTemplatesTemplateIdRoute
-  '/settings/lane-templates': typeof AppSettingsLaneTemplatesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -147,11 +130,9 @@ export interface FileRoutesById {
   '/_app/lanes/$laneId': typeof AppLanesLaneIdRoute
   '/_app/projects/$projectId': typeof AppProjectsProjectIdRoute
   '/_app/settings/github': typeof AppSettingsGithubRoute
-  '/_app/settings/lane-templates': typeof AppSettingsLaneTemplatesRouteWithChildren
+  '/_app/settings/scratch-environment': typeof AppSettingsScratchEnvironmentRoute
   '/_app/settings/secrets': typeof AppSettingsSecretsRoute
   '/_app/lane-invites/$token/accept': typeof AppLaneInvitesTokenAcceptRoute
-  '/_app/settings/lane-templates/$templateId': typeof AppSettingsLaneTemplatesTemplateIdRoute
-  '/_app/settings/lane-templates/': typeof AppSettingsLaneTemplatesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -165,11 +146,9 @@ export interface FileRouteTypes {
     | '/lanes/$laneId'
     | '/projects/$projectId'
     | '/settings/github'
-    | '/settings/lane-templates'
+    | '/settings/scratch-environment'
     | '/settings/secrets'
     | '/lane-invites/$token/accept'
-    | '/settings/lane-templates/$templateId'
-    | '/settings/lane-templates/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
@@ -181,10 +160,9 @@ export interface FileRouteTypes {
     | '/lanes/$laneId'
     | '/projects/$projectId'
     | '/settings/github'
+    | '/settings/scratch-environment'
     | '/settings/secrets'
     | '/lane-invites/$token/accept'
-    | '/settings/lane-templates/$templateId'
-    | '/settings/lane-templates'
   id:
     | '__root__'
     | '/_app'
@@ -197,11 +175,9 @@ export interface FileRouteTypes {
     | '/_app/lanes/$laneId'
     | '/_app/projects/$projectId'
     | '/_app/settings/github'
-    | '/_app/settings/lane-templates'
+    | '/_app/settings/scratch-environment'
     | '/_app/settings/secrets'
     | '/_app/lane-invites/$token/accept'
-    | '/_app/settings/lane-templates/$templateId'
-    | '/_app/settings/lane-templates/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -283,11 +259,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsGithubRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/settings/lane-templates': {
-      id: '/_app/settings/lane-templates'
-      path: '/settings/lane-templates'
-      fullPath: '/settings/lane-templates'
-      preLoaderRoute: typeof AppSettingsLaneTemplatesRouteImport
+    '/_app/settings/scratch-environment': {
+      id: '/_app/settings/scratch-environment'
+      path: '/settings/scratch-environment'
+      fullPath: '/settings/scratch-environment'
+      preLoaderRoute: typeof AppSettingsScratchEnvironmentRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/settings/secrets': {
@@ -304,20 +280,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppLaneInvitesTokenAcceptRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/settings/lane-templates/': {
-      id: '/_app/settings/lane-templates/'
-      path: '/'
-      fullPath: '/settings/lane-templates/'
-      preLoaderRoute: typeof AppSettingsLaneTemplatesIndexRouteImport
-      parentRoute: typeof AppSettingsLaneTemplatesRoute
-    }
-    '/_app/settings/lane-templates/$templateId': {
-      id: '/_app/settings/lane-templates/$templateId'
-      path: '/$templateId'
-      fullPath: '/settings/lane-templates/$templateId'
-      preLoaderRoute: typeof AppSettingsLaneTemplatesTemplateIdRouteImport
-      parentRoute: typeof AppSettingsLaneTemplatesRoute
-    }
   }
 }
 
@@ -333,30 +295,13 @@ const AppProjectsRouteWithChildren = AppProjectsRoute._addFileChildren(
   AppProjectsRouteChildren,
 )
 
-interface AppSettingsLaneTemplatesRouteChildren {
-  AppSettingsLaneTemplatesTemplateIdRoute: typeof AppSettingsLaneTemplatesTemplateIdRoute
-  AppSettingsLaneTemplatesIndexRoute: typeof AppSettingsLaneTemplatesIndexRoute
-}
-
-const AppSettingsLaneTemplatesRouteChildren: AppSettingsLaneTemplatesRouteChildren =
-  {
-    AppSettingsLaneTemplatesTemplateIdRoute:
-      AppSettingsLaneTemplatesTemplateIdRoute,
-    AppSettingsLaneTemplatesIndexRoute: AppSettingsLaneTemplatesIndexRoute,
-  }
-
-const AppSettingsLaneTemplatesRouteWithChildren =
-  AppSettingsLaneTemplatesRoute._addFileChildren(
-    AppSettingsLaneTemplatesRouteChildren,
-  )
-
 interface AppRouteChildren {
   AppAboutRoute: typeof AppAboutRoute
   AppProjectsRoute: typeof AppProjectsRouteWithChildren
   AppIndexRoute: typeof AppIndexRoute
   AppLanesLaneIdRoute: typeof AppLanesLaneIdRoute
   AppSettingsGithubRoute: typeof AppSettingsGithubRoute
-  AppSettingsLaneTemplatesRoute: typeof AppSettingsLaneTemplatesRouteWithChildren
+  AppSettingsScratchEnvironmentRoute: typeof AppSettingsScratchEnvironmentRoute
   AppSettingsSecretsRoute: typeof AppSettingsSecretsRoute
   AppLaneInvitesTokenAcceptRoute: typeof AppLaneInvitesTokenAcceptRoute
 }
@@ -367,7 +312,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppIndexRoute: AppIndexRoute,
   AppLanesLaneIdRoute: AppLanesLaneIdRoute,
   AppSettingsGithubRoute: AppSettingsGithubRoute,
-  AppSettingsLaneTemplatesRoute: AppSettingsLaneTemplatesRouteWithChildren,
+  AppSettingsScratchEnvironmentRoute: AppSettingsScratchEnvironmentRoute,
   AppSettingsSecretsRoute: AppSettingsSecretsRoute,
   AppLaneInvitesTokenAcceptRoute: AppLaneInvitesTokenAcceptRoute,
 }

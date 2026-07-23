@@ -324,7 +324,9 @@ export function createProject(payload: {
   })
 }
 
-export const laneTemplatesQueryKey = ['lane-templates'] as const
+export const scratchEnvironmentQueryKey = ['scratch-environment'] as const
+export const projectEnvironmentQueryKey = (projectId: string) =>
+  ['projects', projectId, 'environment'] as const
 export const secretsQueryKey = ['secrets'] as const
 export const laneAgentsQueryKey = ['lane-agents'] as const
 export const lanesQueryKey = ['lanes'] as const
@@ -341,21 +343,31 @@ export const laneActiveInviteQueryKey = (laneId: string) =>
   ['lanes', laneId, 'invites', 'active'] as const
 export const organizationMembersQueryKey = ['organization-members'] as const
 
-export type LaneTemplate = {
-  id: string
+export type ScratchEnvironment = {
   organization_id: string
-  name: string
-  description: string
   dockerfile_text: string
-  is_system_default: boolean
-  forked_from_template_id?: string | null
   validation_status: string
   validated_image_reference?: string | null
   last_validation_log?: string | null
   validated_at?: string | null
+  updated_by_user_id?: string | null
   created_at: string
   updated_at: string
-  in_use: boolean
+}
+
+export type ProjectEnvironment = {
+  project_id: string
+  organization_id: string
+  dockerfile_text: string
+  validation_status: string
+  validated_image_reference?: string | null
+  last_validation_log?: string | null
+  validated_at?: string | null
+  generation_status: string
+  generation_log?: string | null
+  updated_by_user_id?: string | null
+  created_at: string
+  updated_at: string
 }
 
 export type OrganizationSecret = {
@@ -396,7 +408,6 @@ export type Lane = {
   owner_user_id: string
   name: string
   lane_kind: LaneKind
-  lane_template_id?: string | null
   image_reference?: string | null
   runtime_kind: string
   runtime_id?: string | null
@@ -454,66 +465,25 @@ export type LaneParticipant = {
   email?: string
 }
 
-export function getLaneTemplates(): Promise<{ lane_templates: LaneTemplate[] }> {
-  return apiFetch('/api/v1/lane-templates')
+export function getScratchEnvironment(): Promise<ScratchEnvironment> {
+  return apiFetch('/api/v1/scratch-environment')
 }
 
-export function getLaneTemplate(id: string): Promise<LaneTemplate> {
-  return apiFetch(`/api/v1/lane-templates/${id}`)
-}
-
-export function createLaneTemplate(payload: {
-  name: string
-  description?: string
+export function upsertScratchEnvironment(payload: {
   dockerfile_text: string
-}): Promise<LaneTemplate> {
-  return apiFetch('/api/v1/lane-templates', {
-    method: 'POST',
+}): Promise<ScratchEnvironment> {
+  return apiFetch('/api/v1/scratch-environment', {
+    method: 'PUT',
     body: JSON.stringify(payload),
   })
 }
 
-export function updateLaneTemplate(
-  id: string,
-  payload: {
-    name?: string
-    description?: string
-    dockerfile_text?: string
-  },
-): Promise<LaneTemplate> {
-  return apiFetch(`/api/v1/lane-templates/${id}`, {
-    method: 'PATCH',
-    body: JSON.stringify(payload),
-  })
-}
-
-export function forkLaneTemplate(
-  id: string,
-  name?: string,
-): Promise<LaneTemplate> {
-  return apiFetch(`/api/v1/lane-templates/${id}/fork`, {
-    method: 'POST',
-    body: JSON.stringify({ name }),
-  })
-}
-
-export function deleteLaneTemplate(id: string): Promise<void> {
-  return apiFetch(`/api/v1/lane-templates/${id}`, {
-    method: 'DELETE',
-  })
-}
-
-/**
- * Runs a docker build for the template. HTTP 422 means the build failed but the
- * template row was still updated (validation_status + last_validation_log).
- */
-export async function validateLaneTemplate(
-  id: string,
-): Promise<LaneTemplate> {
+/** Validate Scratch Environment. HTTP 422 still returns the updated environment body. */
+export async function validateScratchEnvironment(): Promise<ScratchEnvironment> {
   const headers = new Headers()
   headers.set('Content-Type', 'application/json')
   const response = await fetch(
-    `${API_BASE_URL}/api/v1/lane-templates/${id}/validate`,
+    `${API_BASE_URL}/api/v1/scratch-environment/validate`,
     {
       method: 'POST',
       headers,
@@ -521,23 +491,88 @@ export async function validateLaneTemplate(
     },
   )
   const body = await parseJson(response)
-  // Build failure is returned as 422 with the updated LaneTemplate JSON body
-  // (includes last_validation_log). Treat that as a resolved result, not a throw.
   if (response.ok || response.status === 422) {
     if (!body || typeof body !== 'object') {
-      throw new ApiError(
-        response.status,
-        'Invalid validate response',
-        body,
-      )
+      throw new ApiError(response.status, 'Invalid validate response', body)
     }
-    return body as LaneTemplate
+    return body as ScratchEnvironment
   }
   throw new ApiError(
     response.status,
     errorMessage(body, response.statusText || 'Request failed'),
     body,
   )
+}
+
+export async function getProjectEnvironment(
+  projectId: string,
+): Promise<ProjectEnvironment | null> {
+  const headers = new Headers()
+  const response = await fetch(
+    `${API_BASE_URL}/api/v1/projects/${projectId}/environment`,
+    {
+      headers,
+      credentials: 'include',
+    },
+  )
+  if (response.status === 404) return null
+  const body = await parseJson(response)
+  if (!response.ok) {
+    throw new ApiError(
+      response.status,
+      errorMessage(body, response.statusText || 'Request failed'),
+      body,
+    )
+  }
+  return body as ProjectEnvironment
+}
+
+export function upsertProjectEnvironment(
+  projectId: string,
+  payload: { dockerfile_text: string },
+): Promise<ProjectEnvironment> {
+  return apiFetch(`/api/v1/projects/${projectId}/environment`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+/** Validate Project Environment. HTTP 422 still returns the updated environment body. */
+export async function validateProjectEnvironment(
+  projectId: string,
+): Promise<ProjectEnvironment> {
+  const headers = new Headers()
+  headers.set('Content-Type', 'application/json')
+  const response = await fetch(
+    `${API_BASE_URL}/api/v1/projects/${projectId}/environment/validate`,
+    {
+      method: 'POST',
+      headers,
+      credentials: 'include',
+    },
+  )
+  const body = await parseJson(response)
+  if (response.ok || response.status === 422) {
+    if (!body || typeof body !== 'object') {
+      throw new ApiError(response.status, 'Invalid validate response', body)
+    }
+    return body as ProjectEnvironment
+  }
+  throw new ApiError(
+    response.status,
+    errorMessage(body, response.statusText || 'Request failed'),
+    body,
+  )
+}
+
+export function generateProjectEnvironment(
+  projectId: string,
+  payload: { model_source?: string; agent_model?: string } = {},
+): Promise<ProjectEnvironment> {
+  return apiFetch(`/api/v1/projects/${projectId}/environment/generate`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
 }
 
 export function getSecrets(): Promise<{ secrets: OrganizationSecret[] }> {
@@ -586,7 +621,6 @@ export function getProjectLanes(
 
 export function createLane(payload: {
   name: string
-  lane_template_id: string
   agent_provider: string
   project_id?: string | null
 }): Promise<Lane> {

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { useEffect, useMemo, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
@@ -25,15 +25,16 @@ import {
   ApiError,
   createLane,
   getLaneAgents,
-  getLaneTemplates,
+  getProjectEnvironment,
   getProjects,
+  getScratchEnvironment,
   laneAgentsQueryKey,
-  laneTemplatesQueryKey,
   lanesQueryKey,
+  projectEnvironmentQueryKey,
   projectLanesQueryKey,
   projectsQueryKey,
+  scratchEnvironmentQueryKey,
   type LaneAgent,
-  type LaneTemplate,
   type Project,
 } from '@/lib/api'
 
@@ -57,7 +58,6 @@ export function CreateLaneDialog({ open, onOpenChange, prefill }: Props) {
   const queryClient = useQueryClient()
   const [name, setName] = useState('Lane')
   const [projectChoice, setProjectChoice] = useState<ProjectChoice | null>(null)
-  const [template, setTemplate] = useState<LaneTemplate | null>(null)
   const [agent, setAgent] = useState<LaneAgent | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -66,10 +66,15 @@ export function CreateLaneDialog({ open, onOpenChange, prefill }: Props) {
     queryFn: getProjects,
     enabled: open,
   })
-  const templatesQuery = useQuery({
-    queryKey: laneTemplatesQueryKey,
-    queryFn: getLaneTemplates,
+  const scratchEnvQuery = useQuery({
+    queryKey: scratchEnvironmentQueryKey,
+    queryFn: getScratchEnvironment,
     enabled: open,
+  })
+  const projectEnvQuery = useQuery({
+    queryKey: projectEnvironmentQueryKey(projectChoice?.id ?? ''),
+    queryFn: () => getProjectEnvironment(projectChoice!.id),
+    enabled: open && projectChoice?.kind === 'project',
   })
   const agentsQuery = useQuery({
     queryKey: laneAgentsQueryKey,
@@ -94,22 +99,22 @@ export function CreateLaneDialog({ open, onOpenChange, prefill }: Props) {
     return [scratch, ...projects]
   }, [projectsQuery.data])
 
-  const validTemplates = useMemo(
-    () =>
-      (templatesQuery.data?.lane_templates ?? []).filter(
-        (t) => t.validation_status === 'valid',
-      ),
-    [templatesQuery.data],
-  )
   const availableAgents = useMemo(
     () => (agentsQuery.data?.agents ?? []).filter((a) => a.available),
     [agentsQuery.data],
   )
 
+  const environmentReady = useMemo(() => {
+    if (!projectChoice) return false
+    if (projectChoice.kind === 'scratch') {
+      return scratchEnvQuery.data?.validation_status === 'valid'
+    }
+    return projectEnvQuery.data?.validation_status === 'valid'
+  }, [projectChoice, scratchEnvQuery.data, projectEnvQuery.data])
+
   useEffect(() => {
     if (!open) return
     setName('Lane')
-    setTemplate(null)
     setAgent(null)
     setError(null)
     if (prefill.mode === 'scratch') {
@@ -143,7 +148,6 @@ export function CreateLaneDialog({ open, onOpenChange, prefill }: Props) {
     mutationFn: () =>
       createLane({
         name: name.trim() || 'Lane',
-        lane_template_id: template!.id,
         agent_provider: agent!.provider,
         project_id:
           projectChoice?.kind === 'project' ? projectChoice.id : null,
@@ -167,9 +171,59 @@ export function CreateLaneDialog({ open, onOpenChange, prefill }: Props) {
 
   const canSubmit =
     !!projectChoice &&
-    !!template &&
     !!agent &&
+    environmentReady &&
     !createMutation.isPending
+
+  const environmentHint = (() => {
+    if (!projectChoice) return null
+    if (projectChoice.kind === 'scratch') {
+      if (scratchEnvQuery.isLoading) return 'Checking Scratch Environment…'
+      if (scratchEnvQuery.data?.validation_status === 'valid') return null
+      return (
+        <>
+          Validate the Scratch Environment in{' '}
+          <Link
+            to="/settings/scratch-environment"
+            className="underline underline-offset-4"
+          >
+            Settings → Scratch Environment
+          </Link>{' '}
+          first.
+        </>
+      )
+    }
+    if (projectEnvQuery.isLoading) return 'Checking Project Environment…'
+    if (projectEnvQuery.data?.validation_status === 'valid') return null
+    if (projectEnvQuery.data == null) {
+      return (
+        <>
+          This Project has no environment yet. Set one up on the{' '}
+          <Link
+            to="/projects/$projectId"
+            params={{ projectId: projectChoice.id }}
+            className="underline underline-offset-4"
+          >
+            project page
+          </Link>
+          .
+        </>
+      )
+    }
+    return (
+      <>
+        Validate the Project Environment on the{' '}
+        <Link
+          to="/projects/$projectId"
+          params={{ projectId: projectChoice.id }}
+          className="underline underline-offset-4"
+        >
+          project page
+        </Link>{' '}
+        first.
+      </>
+    )
+  })()
 
   return (
     <Dialog
@@ -186,7 +240,7 @@ export function CreateLaneDialog({ open, onOpenChange, prefill }: Props) {
         <DialogHeader>
           <DialogTitle>Create Lane</DialogTitle>
           <DialogDescription>
-            Start a shared chat and Runtime from a validated template.
+            Start a shared chat and Runtime from a validated environment.
           </DialogDescription>
         </DialogHeader>
         <form
@@ -233,36 +287,6 @@ export function CreateLaneDialog({ open, onOpenChange, prefill }: Props) {
             />
           </div>
           <div className="space-y-2">
-            <Label>Lane template</Label>
-            <Combobox
-              items={validTemplates}
-              value={template}
-              onValueChange={setTemplate}
-              itemToStringLabel={(t) => t.name}
-              itemToStringValue={(t) => t.id}
-              isItemEqualToValue={(a, b) => a.id === b.id}
-            >
-              <ComboboxInput
-                placeholder="Select a validated template"
-                className="w-full"
-              />
-              <ComboboxContent>
-                <ComboboxEmpty>
-                  {validTemplates.length === 0
-                    ? 'No validated templates — validate one in Settings → Lane Templates'
-                    : 'No match'}
-                </ComboboxEmpty>
-                <ComboboxList>
-                  {(t) => (
-                    <ComboboxItem key={t.id} value={t}>
-                      {t.name}
-                    </ComboboxItem>
-                  )}
-                </ComboboxList>
-              </ComboboxContent>
-            </Combobox>
-          </div>
-          <div className="space-y-2">
             <Label>Agent</Label>
             <Combobox
               items={availableAgents}
@@ -289,6 +313,9 @@ export function CreateLaneDialog({ open, onOpenChange, prefill }: Props) {
               </ComboboxContent>
             </Combobox>
           </div>
+          {environmentHint ? (
+            <p className="text-muted-foreground text-sm">{environmentHint}</p>
+          ) : null}
           {error ? <p className="text-destructive text-sm">{error}</p> : null}
           <DialogFooter>
             <Button

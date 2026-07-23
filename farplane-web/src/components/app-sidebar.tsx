@@ -38,8 +38,8 @@ const mainNavItems = [
 const settingsNavItems = [
   { to: '/settings/github', label: 'GitHub', icon: GitBranchIcon },
   {
-    to: '/settings/lane-templates',
-    label: 'Lane Templates',
+    to: '/settings/scratch-environment',
+    label: 'Scratch Environment',
     icon: ContainerIcon,
   },
   { to: '/settings/secrets', label: 'Secrets', icon: KeyRoundIcon },
