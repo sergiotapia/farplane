@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -20,7 +21,6 @@ import (
 
 type createLaneRequest struct {
 	Name            string  `json:"name"`
-	LaneTemplateID  string  `json:"lane_template_id"`
 	AgentProvider   string  `json:"agent_provider"`
 	ModelSource     *string `json:"model_source"`
 	AgentModel      *string `json:"agent_model"`
@@ -162,30 +162,50 @@ func (a *api) createLaneFromRequest(c *gin.Context, req createLaneRequest) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": clientErrorForModelSelection(err)})
 		return
 	}
-	templateID := strings.TrimSpace(req.LaneTemplateID)
-	if templateID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "lane_template_id is required"})
-		return
-	}
-	tmpl, err := a.store.GetLaneTemplate(c.Request.Context(), templateID)
-	if err != nil {
-		writeStoreError(c, err)
-		return
-	}
-	if tmpl.OrganizationID != principal.Organization.ID {
-		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
-		return
-	}
-	if tmpl.ValidationStatus != models.LaneTemplateValidationValid {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "lane template is not valid; validate it first"})
-		return
-	}
-
-	snapshot := tmpl.DockerfileText
+	var snapshot string
 	var imageRef *string
-	if tmpl.ValidatedImageReference != nil && *tmpl.ValidatedImageReference != "" {
-		imageRef = tmpl.ValidatedImageReference
-	} else if a.runtime != nil {
+	if projectID != nil {
+		env, envErr := a.store.GetProjectEnvironment(c.Request.Context(), *projectID)
+		if envErr != nil {
+			if errors.Is(envErr, store.ErrNotFound) {
+				c.JSON(http.StatusBadRequest, gin.H{
+					"error": "project has no Project Environment; generate or save one first",
+				})
+				return
+			}
+			writeStoreError(c, envErr)
+			return
+		}
+		if env.ValidationStatus != models.EnvironmentValidationValid {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "project environment is not valid; validate it first",
+			})
+			return
+		}
+		snapshot = env.DockerfileText
+		imageRef = env.ValidatedImageReference
+	} else {
+		env, envErr := a.store.EnsureScratchEnvironment(
+			c.Request.Context(), principal.Organization.ID, principal.User.ID,
+		)
+		if envErr != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load scratch environment"})
+			return
+		}
+		if env.ValidationStatus != models.EnvironmentValidationValid {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "scratch environment is not valid; validate it first",
+			})
+			return
+		}
+		snapshot = env.DockerfileText
+		imageRef = env.ValidatedImageReference
+	}
+	if imageRef == nil || *imageRef == "" {
+		if a.runtime == nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "environment has no validated image"})
+			return
+		}
 		tagSuffix := "scratch"
 		if projectID != nil && len(*projectID) >= 8 {
 			tagSuffix = (*projectID)[:8]
@@ -197,10 +217,6 @@ func (a *api) createLaneFromRequest(c *gin.Context, req createLaneRequest) {
 			return
 		}
 		imageRef = &ref
-	}
-	if imageRef == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "template has no validated image"})
-		return
 	}
 
 	name := strings.TrimSpace(req.Name)
@@ -223,7 +239,6 @@ func (a *api) createLaneFromRequest(c *gin.Context, req createLaneRequest) {
 		OwnerUserID:        principal.User.ID,
 		Name:               name,
 		LaneKind:           kind,
-		LaneTemplateID:     &tmpl.ID,
 		DockerfileSnapshot: snapshot,
 		ImageReference:     imageRef,
 		RuntimeKind:        models.RuntimeKindDocker,
@@ -640,7 +655,6 @@ func (a *api) laneJSON(l models.Lane) gin.H {
 		"owner_user_id":             l.OwnerUserID,
 		"name":                      l.Name,
 		"lane_kind":                 l.LaneKind,
-		"lane_template_id":          l.LaneTemplateID,
 		"image_reference":           l.ImageReference,
 		"runtime_kind":              l.RuntimeKind,
 		"runtime_id":                l.RuntimeID,

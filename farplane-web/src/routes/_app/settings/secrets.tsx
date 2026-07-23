@@ -32,12 +32,12 @@ function SecretsPage() {
         <p className="text-muted-foreground text-sm">
           Organization API keys for Lane agents. Values are encrypted at rest
           and never returned by the API. Agents in the Lane picker stay disabled
-          until their required key is set. Manage templates in{' '}
+          until their required key is set. Edit the Scratch Environment in{' '}
           <Link
-            to="/settings/lane-templates"
+            to="/settings/scratch-environment"
             className="underline underline-offset-4"
           >
-            Lane Templates
+            Scratch Environment
           </Link>
           .
         </p>

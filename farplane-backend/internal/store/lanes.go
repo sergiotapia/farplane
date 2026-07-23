@@ -26,7 +26,6 @@ var laneColumnNames = []string{
 	"owner_user_id",
 	"name",
 	"lane_kind",
-	"lane_template_id",
 	"dockerfile_snapshot",
 	"image_reference",
 	"runtime_kind",
@@ -60,7 +59,6 @@ type CreateLaneInput struct {
 	OwnerUserID        string
 	Name               string
 	LaneKind           string
-	LaneTemplateID     *string
 	DockerfileSnapshot string
 	ImageReference     *string
 	RuntimeKind        string
@@ -112,14 +110,14 @@ func (s *Store) CreateLane(ctx context.Context, in CreateLaneInput) (models.Lane
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
 		q := `
 			INSERT INTO lanes (
-				project_id, organization_id, owner_user_id, name, lane_kind, lane_template_id,
+				project_id, organization_id, owner_user_id, name, lane_kind,
 				dockerfile_snapshot, image_reference, runtime_kind, runtime_id, agent_provider,
 				model_source, agent_model, reasoning_effort, status, created_at, updated_at
-			) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$16)
+			) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$15)
 			RETURNING ` + laneColumnsSQL("")
 		lane, err := scanLane(tx.QueryRow(
 			ctx, q,
-			in.ProjectID, in.OrganizationID, in.OwnerUserID, name, kind, in.LaneTemplateID,
+			in.ProjectID, in.OrganizationID, in.OwnerUserID, name, kind,
 			in.DockerfileSnapshot, in.ImageReference, in.RuntimeKind, in.RuntimeID, in.AgentProvider,
 			modelSource, agentModel, in.ReasoningEffort, in.Status, now,
 		))
@@ -191,7 +189,7 @@ func (s *Store) ListLanesGrouped(ctx context.Context, organizationID, userID str
 		)
 		err := rows.Scan(
 			&l.ID, &l.ProjectID, &l.OrganizationID, &l.OwnerUserID, &l.Name, &l.LaneKind,
-			&l.LaneTemplateID, &l.DockerfileSnapshot, &l.ImageReference, &l.RuntimeKind,
+			&l.DockerfileSnapshot, &l.ImageReference, &l.RuntimeKind,
 			&l.RuntimeID, &l.AgentProvider, &l.AgentProviderSessionID,
 			&l.ModelSource, &l.AgentModel, &l.ReasoningEffort, &l.Status,
 			&l.CreatedAt, &l.UpdatedAt,
@@ -426,7 +424,7 @@ func (s *Store) RequireLaneOwner(ctx context.Context, laneID, userID string) (mo
 func scanLane(row scannable) (models.Lane, error) {
 	var l models.Lane
 	err := row.Scan(
-		&l.ID, &l.ProjectID, &l.OrganizationID, &l.OwnerUserID, &l.Name, &l.LaneKind, &l.LaneTemplateID,
+		&l.ID, &l.ProjectID, &l.OrganizationID, &l.OwnerUserID, &l.Name, &l.LaneKind,
 		&l.DockerfileSnapshot, &l.ImageReference, &l.RuntimeKind, &l.RuntimeID, &l.AgentProvider,
 		&l.AgentProviderSessionID, &l.ModelSource, &l.AgentModel, &l.ReasoningEffort, &l.Status,
 		&l.CreatedAt, &l.UpdatedAt,

@@ -13,6 +13,7 @@ import (
 	"github.com/farplane/farplane/farplane-backend/internal/agents"
 	"github.com/farplane/farplane/farplane-backend/internal/auth"
 	"github.com/farplane/farplane/farplane-backend/internal/config"
+	"github.com/farplane/farplane/farplane-backend/internal/envgen"
 	"github.com/farplane/farplane/farplane-backend/internal/githubapp"
 	"github.com/farplane/farplane/farplane-backend/internal/lanehub"
 	"github.com/farplane/farplane/farplane-backend/internal/models"
@@ -38,6 +39,12 @@ type api struct {
 
 	// Optional test hook for manifest code exchange.
 	manifestConvert func(ctx context.Context, code string) (githubapp.ManifestApp, error)
+
+	// Optional Project Environment generator (tests inject a fake).
+	envGenerator envgen.Generator
+
+	// Optional checkout hook for Project Environment Generator (tests).
+	cloneProjectWorkspace func(ctx context.Context, project models.Project) (string, func(), error)
 }
 
 func newAPI(cfg config.Config, st *store.Store, rt runtime.Runtime, hub *lanehub.Hub) *api {

@@ -109,14 +109,13 @@ func setupLaneTest(t *testing.T) (
 	cookie := loginCookie(t, engine, "owner@example.com", "password1")
 	principal := mustPrincipal(t, engine)
 
-	tmpl, err := st.EnsureDefaultLaneTemplate(context.Background(), principal.orgID, principal.userID)
-	if err != nil {
-		t.Fatalf("EnsureDefaultLaneTemplate: %v", err)
+	if _, err := st.EnsureScratchEnvironment(context.Background(), principal.orgID, principal.userID); err != nil {
+		t.Fatalf("EnsureScratchEnvironment: %v", err)
 	}
-	if _, err := st.CompleteLaneTemplateValidation(
-		context.Background(), tmpl.ID, true, "farplane/test:latest", "ok",
+	if _, err := st.CompleteScratchEnvironmentValidation(
+		context.Background(), principal.orgID, true, "farplane/test:latest", "ok",
 	); err != nil {
-		t.Fatalf("CompleteLaneTemplateValidation: %v", err)
+		t.Fatalf("CompleteScratchEnvironmentValidation: %v", err)
 	}
 	if err := st.SetOrganizationSecret(
 		context.Background(),
@@ -168,6 +167,25 @@ func seedProject(t *testing.T, st *store.Store, principal testPrincipal) models.
 	return project
 }
 
+func seedValidProjectEnvironment(t *testing.T, st *store.Store, project models.Project, userID string) {
+	t.Helper()
+	env, err := st.UpsertProjectEnvironment(context.Background(), store.UpsertProjectEnvironmentInput{
+		ProjectID:        project.ID,
+		OrganizationID:   project.OrganizationID,
+		DockerfileText:   "FROM debian:bookworm-slim\n",
+		UpdatedByUserID:  userID,
+		GenerationStatus: models.EnvironmentGenerationIdle,
+	})
+	if err != nil {
+		t.Fatalf("UpsertProjectEnvironment: %v", err)
+	}
+	if _, err := st.CompleteProjectEnvironmentValidation(
+		context.Background(), env.ProjectID, true, "farplane/test:latest", "ok",
+	); err != nil {
+		t.Fatalf("CompleteProjectEnvironmentValidation: %v", err)
+	}
+}
+
 func createLaneHTTP(
 	t *testing.T,
 	engine http.Handler,
@@ -194,15 +212,10 @@ func createLaneHTTP(
 func TestCreateScratchAndProjectLaneKinds(t *testing.T) {
 	engine, cookie, st, rt, principal, _ := setupLaneTest(t)
 	project := seedProject(t, st, principal)
-
-	tmpl, err := st.GetSystemDefaultLaneTemplate(context.Background(), principal.orgID)
-	if err != nil {
-		t.Fatalf("template: %v", err)
-	}
+	seedValidProjectEnvironment(t, st, project, principal.userID)
 
 	scratch := createLaneHTTP(t, engine, cookie, map[string]any{
-		"name":             "Scratch",
-		"lane_template_id": tmpl.ID,
+		"name":           "Scratch",
 		"agent_provider":   models.AgentProviderClaudeCode,
 	})
 	if scratch["lane_kind"] != models.LaneKindScratch {
@@ -216,9 +229,8 @@ func TestCreateScratchAndProjectLaneKinds(t *testing.T) {
 	}
 
 	projectLane := createLaneHTTP(t, engine, cookie, map[string]any{
-		"name":             "Project lane",
-		"project_id":       project.ID,
-		"lane_template_id": tmpl.ID,
+		"name":           "Project lane",
+		"project_id":     project.ID,
 		"agent_provider":   models.AgentProviderClaudeCode,
 	})
 	if projectLane["lane_kind"] != models.LaneKindProject {
@@ -229,8 +241,7 @@ func TestCreateScratchAndProjectLaneKinds(t *testing.T) {
 	}
 
 	aliasBody, _ := json.Marshal(map[string]any{
-		"name":             "Alias lane",
-		"lane_template_id": tmpl.ID,
+		"name":           "Alias lane",
 		"agent_provider":   models.AgentProviderClaudeCode,
 	})
 	aliasReq := httptest.NewRequest(http.MethodPost, "/api/v1/projects/"+project.ID+"/lanes", bytes.NewReader(aliasBody))
@@ -251,20 +262,15 @@ func TestCreateScratchAndProjectLaneKinds(t *testing.T) {
 func TestListLanesGroupedAndDestroy(t *testing.T) {
 	engine, cookie, st, rt, principal, _ := setupLaneTest(t)
 	project := seedProject(t, st, principal)
-	tmpl, err := st.GetSystemDefaultLaneTemplate(context.Background(), principal.orgID)
-	if err != nil {
-		t.Fatalf("template: %v", err)
-	}
+	seedValidProjectEnvironment(t, st, project, principal.userID)
 
 	scratch := createLaneHTTP(t, engine, cookie, map[string]any{
-		"name":             "Scratch",
-		"lane_template_id": tmpl.ID,
+		"name":           "Scratch",
 		"agent_provider":   models.AgentProviderClaudeCode,
 	})
 	projectLane := createLaneHTTP(t, engine, cookie, map[string]any{
-		"name":             "With project",
-		"project_id":       project.ID,
-		"lane_template_id": tmpl.ID,
+		"name":           "With project",
+		"project_id":     project.ID,
 		"agent_provider":   models.AgentProviderClaudeCode,
 	})
 
@@ -334,17 +340,12 @@ func TestListLanesGroupedAndDestroy(t *testing.T) {
 
 func TestParticipantsHardDeleteAndInviteMultiUse(t *testing.T) {
 	engine, cookie, st, _, principal, pool := setupLaneTest(t)
-	tmpl, err := st.GetSystemDefaultLaneTemplate(context.Background(), principal.orgID)
-	if err != nil {
-		t.Fatalf("template: %v", err)
-	}
 
 	memberID := insertMemberUser(t, pool, principal.orgID, "member@example.com", "Member", "password1")
 	memberCookie := loginCookie(t, engine, "member@example.com", "password1")
 
 	lane := createLaneHTTP(t, engine, cookie, map[string]any{
-		"name":             "Shared",
-		"lane_template_id": tmpl.ID,
+		"name":           "Shared",
 		"agent_provider":   models.AgentProviderClaudeCode,
 	})
 	laneID, _ := lane["id"].(string)
@@ -506,14 +507,9 @@ func TestPatchLaneModelAndAgentSwitchDefaults(t *testing.T) {
 	); err != nil {
 		t.Fatalf("SetOrganizationSecret openai: %v", err)
 	}
-	tmpl, err := st.GetSystemDefaultLaneTemplate(context.Background(), principal.orgID)
-	if err != nil {
-		t.Fatalf("template: %v", err)
-	}
 
 	lane := createLaneHTTP(t, engine, cookie, map[string]any{
-		"name":             "Settings",
-		"lane_template_id": tmpl.ID,
+		"name":           "Settings",
 		"agent_provider":   models.AgentProviderClaudeCode,
 	})
 	if lane["model_source"] != "anthropic" {
@@ -638,20 +634,14 @@ func TestPatchLaneModelAndAgentSwitchDefaults(t *testing.T) {
 
 func TestStoreLaneKindConstraints(t *testing.T) {
 	_, _, st, _, principal, _ := setupLaneTest(t)
-	tmpl, err := st.GetSystemDefaultLaneTemplate(context.Background(), principal.orgID)
-	if err != nil {
-		t.Fatalf("template: %v", err)
-	}
 	img := "farplane/test:latest"
-	tid := tmpl.ID
 
 	medium := "medium"
-	_, err = st.CreateLane(context.Background(), store.CreateLaneInput{
+	_, err := st.CreateLane(context.Background(), store.CreateLaneInput{
 		OrganizationID:     principal.orgID,
 		OwnerUserID:        principal.userID,
 		Name:               "bad project",
 		LaneKind:           models.LaneKindProject,
-		LaneTemplateID:     &tid,
 		DockerfileSnapshot: "FROM scratch",
 		ImageReference:     &img,
 		AgentProvider:      models.AgentProviderClaudeCode,
@@ -668,7 +658,6 @@ func TestStoreLaneKindConstraints(t *testing.T) {
 		OwnerUserID:        principal.userID,
 		Name:               "ok scratch",
 		LaneKind:           models.LaneKindScratch,
-		LaneTemplateID:     &tid,
 		DockerfileSnapshot: "FROM scratch",
 		ImageReference:     &img,
 		AgentProvider:      models.AgentProviderClaudeCode,

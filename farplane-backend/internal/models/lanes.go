@@ -5,10 +5,17 @@ import (
 	"time"
 )
 
-// Lane template validation statuses (set only by Validate build).
+// Environment validation statuses (set only by Validate build).
 const (
-	LaneTemplateValidationValid   = "valid"
-	LaneTemplateValidationInvalid = "invalid"
+	EnvironmentValidationValid   = "valid"
+	EnvironmentValidationInvalid = "invalid"
+)
+
+// Project Environment generation statuses.
+const (
+	EnvironmentGenerationIdle       = "idle"
+	EnvironmentGenerationGenerating = "generating"
+	EnvironmentGenerationFailed     = "failed"
 )
 
 // Runtime kinds for Lane computers.
@@ -78,21 +85,31 @@ const (
 	LaneMessageRoleSystem    = "system"
 )
 
-// LaneTemplate is an org-editable Dockerfile used to spawn Lanes.
-type LaneTemplate struct {
-	ID                      string
+// ScratchEnvironment is the Organization-wide Dockerfile for Scratch Lanes.
+type ScratchEnvironment struct {
 	OrganizationID          string
-	Name                    string
-	Description             string
 	DockerfileText          string
-	IsSystemDefault         bool
-	ForkedFromTemplateID    *string
-	CreatedByUserID         *string
-	UpdatedByUserID         *string
 	ValidationStatus        string
 	ValidatedImageReference *string
 	LastValidationLog       *string
 	ValidatedAt             *time.Time
+	UpdatedByUserID         *string
+	CreatedAt               time.Time
+	UpdatedAt               time.Time
+}
+
+// ProjectEnvironment is the zero-or-one Dockerfile for a Project.
+type ProjectEnvironment struct {
+	ProjectID               string
+	OrganizationID          string
+	DockerfileText          string
+	ValidationStatus        string
+	ValidatedImageReference *string
+	LastValidationLog       *string
+	ValidatedAt             *time.Time
+	GenerationStatus        string
+	GenerationLog           *string
+	UpdatedByUserID         *string
 	CreatedAt               time.Time
 	UpdatedAt               time.Time
 }
@@ -112,7 +129,6 @@ type Lane struct {
 	OwnerUserID            string
 	Name                   string
 	LaneKind               string
-	LaneTemplateID         *string
 	DockerfileSnapshot     string
 	ImageReference         *string
 	RuntimeKind            string
