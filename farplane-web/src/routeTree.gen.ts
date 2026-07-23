@@ -16,6 +16,7 @@ import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppProjectsRouteImport } from './routes/_app/projects'
 import { Route as LaneInvitesTokenRouteImport } from './routes/lane-invites/$token'
 import { Route as AppLanesLaneIdRouteImport } from './routes/_app/lanes/$laneId'
+import { Route as AppProjectsIndexRouteImport } from './routes/_app/projects/index'
 import { Route as AppProjectsProjectIdRouteImport } from './routes/_app/projects/$projectId'
 import { Route as AppSettingsGithubRouteImport } from './routes/_app/settings/github'
 import { Route as AppSettingsScratchEnvironmentRouteImport } from './routes/_app/settings/scratch-environment'
@@ -56,6 +57,11 @@ const AppLanesLaneIdRoute = AppLanesLaneIdRouteImport.update({
   path: '/lanes/$laneId',
   getParentRoute: () => AppRoute,
 } as any)
+const AppProjectsIndexRoute = AppProjectsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppProjectsRoute,
+} as any)
 const AppProjectsProjectIdRoute = AppProjectsProjectIdRouteImport.update({
   id: '/$projectId',
   path: '/$projectId',
@@ -95,12 +101,12 @@ export interface FileRoutesByFullPath {
   '/settings/github': typeof AppSettingsGithubRoute
   '/settings/scratch-environment': typeof AppSettingsScratchEnvironmentRoute
   '/settings/secrets': typeof AppSettingsSecretsRoute
+  '/projects/': typeof AppProjectsIndexRoute
   '/lane-invites/$token/accept': typeof AppLaneInvitesTokenAcceptRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/setup': typeof SetupRoute
-  '/projects': typeof AppProjectsRouteWithChildren
   '/lane-invites/$token': typeof LaneInvitesTokenRoute
   '/': typeof AppIndexRoute
   '/lanes/$laneId': typeof AppLanesLaneIdRoute
@@ -108,6 +114,7 @@ export interface FileRoutesByTo {
   '/settings/github': typeof AppSettingsGithubRoute
   '/settings/scratch-environment': typeof AppSettingsScratchEnvironmentRoute
   '/settings/secrets': typeof AppSettingsSecretsRoute
+  '/projects': typeof AppProjectsIndexRoute
   '/lane-invites/$token/accept': typeof AppLaneInvitesTokenAcceptRoute
 }
 export interface FileRoutesById {
@@ -123,6 +130,7 @@ export interface FileRoutesById {
   '/_app/settings/github': typeof AppSettingsGithubRoute
   '/_app/settings/scratch-environment': typeof AppSettingsScratchEnvironmentRoute
   '/_app/settings/secrets': typeof AppSettingsSecretsRoute
+  '/_app/projects/': typeof AppProjectsIndexRoute
   '/_app/lane-invites/$token/accept': typeof AppLaneInvitesTokenAcceptRoute
 }
 export interface FileRouteTypes {
@@ -138,12 +146,12 @@ export interface FileRouteTypes {
     | '/settings/github'
     | '/settings/scratch-environment'
     | '/settings/secrets'
+    | '/projects/'
     | '/lane-invites/$token/accept'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
     | '/setup'
-    | '/projects'
     | '/lane-invites/$token'
     | '/'
     | '/lanes/$laneId'
@@ -151,6 +159,7 @@ export interface FileRouteTypes {
     | '/settings/github'
     | '/settings/scratch-environment'
     | '/settings/secrets'
+    | '/projects'
     | '/lane-invites/$token/accept'
   id:
     | '__root__'
@@ -165,6 +174,7 @@ export interface FileRouteTypes {
     | '/_app/settings/github'
     | '/_app/settings/scratch-environment'
     | '/_app/settings/secrets'
+    | '/_app/projects/'
     | '/_app/lane-invites/$token/accept'
   fileRoutesById: FileRoutesById
 }
@@ -226,6 +236,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppLanesLaneIdRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/projects/': {
+      id: '/_app/projects/'
+      path: '/'
+      fullPath: '/projects/'
+      preLoaderRoute: typeof AppProjectsIndexRouteImport
+      parentRoute: typeof AppProjectsRoute
+    }
     '/_app/projects/$projectId': {
       id: '/_app/projects/$projectId'
       path: '/$projectId'
@@ -266,10 +283,12 @@ declare module '@tanstack/react-router' {
 
 interface AppProjectsRouteChildren {
   AppProjectsProjectIdRoute: typeof AppProjectsProjectIdRoute
+  AppProjectsIndexRoute: typeof AppProjectsIndexRoute
 }
 
 const AppProjectsRouteChildren: AppProjectsRouteChildren = {
   AppProjectsProjectIdRoute: AppProjectsProjectIdRoute,
+  AppProjectsIndexRoute: AppProjectsIndexRoute,
 }
 
 const AppProjectsRouteWithChildren = AppProjectsRoute._addFileChildren(
