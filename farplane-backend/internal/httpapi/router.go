@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/farplane/farplane/farplane-backend/internal/agents"
 	"github.com/farplane/farplane/farplane-backend/internal/config"
 	"github.com/farplane/farplane/farplane-backend/internal/githubapp"
 	"github.com/farplane/farplane/farplane-backend/internal/lanehub"
@@ -40,6 +41,13 @@ func WithManifestConvert(fn func(ctx context.Context, code string) (githubapp.Ma
 func WithRuntime(rt runtime.Runtime) Option {
 	return func(a *api) {
 		a.runtime = rt
+	}
+}
+
+// WithAgentCatalog injects a model catalog (typically a fake OpenRouter client in tests).
+func WithAgentCatalog(catalog *agents.ModelCatalog) Option {
+	return func(a *api) {
+		a.catalog = catalog
 	}
 }
 
@@ -118,6 +126,7 @@ func New(pool *pgxpool.Pool, cfg config.Config, opts ...Option) *gin.Engine {
 			authed.DELETE("/secrets/:name", api.handleClearSecret)
 
 			authed.GET("/lane-agents", api.handleListLaneAgents)
+			authed.GET("/lane-agents/:provider/models", api.handleListLaneAgentModels)
 
 			authed.GET("/lanes", api.handleListLanes)
 			authed.POST("/lanes", api.handleCreateLaneTopLevel)
@@ -128,6 +137,8 @@ func New(pool *pgxpool.Pool, cfg config.Config, opts ...Option) *gin.Engine {
 			authed.DELETE("/lanes/:id", api.handleDestroyLane)
 			authed.GET("/lanes/:id/messages", api.handleListLaneMessages)
 			authed.POST("/lanes/:id/messages", api.handlePostLaneMessage)
+			// Static path before /lanes/:id/ws so "turns" is not treated as an id.
+			authed.GET("/lanes/turns/ws", api.handleLanesTurnWebSocket)
 			authed.GET("/lanes/:id/ws", api.handleLaneWebSocket)
 
 			authed.GET("/lanes/:id/participants", api.handleListLaneParticipants)

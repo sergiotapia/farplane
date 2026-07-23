@@ -5,10 +5,11 @@ import "github.com/farplane/farplane/farplane-backend/internal/models"
 
 // Agent describes one choosable Lane agent provider.
 type Agent struct {
-	Provider       string `json:"provider"`
-	Label          string `json:"label"`
-	RequiredSecret string `json:"required_secret"`
-	Available      bool   `json:"available"`
+	Provider       string              `json:"provider"`
+	Label          string              `json:"label"`
+	RequiredSecret string              `json:"required_secret"`
+	Available      bool                `json:"available"`
+	ModelSources   []ModelSourceOption `json:"model_sources"`
 }
 
 // Catalog is the fixed v1 agent list.
@@ -56,17 +57,21 @@ func SecretLabel(name string) string {
 	}
 }
 
-// Availability marks each catalog entry available when its required secret is set.
+// Availability marks each catalog entry available when any required model
+// source secret is set, and attaches the available model_sources list.
 func Availability(setSecrets map[string]bool) []Agent {
 	out := make([]Agent, 0, len(Catalog))
 	for _, a := range Catalog {
-		a.Available = setSecrets[a.RequiredSecret]
+		sources := SourcesForAgent(a.Provider, setSecrets)
+		a.ModelSources = sources
+		a.Available = len(sources) > 0
 		out = append(out, a)
 	}
 	return out
 }
 
-// RequiredSecretFor returns the secret name required for a provider, or empty if unknown.
+// RequiredSecretFor returns a primary secret name for a provider (display / legacy).
+// Multi-provider agents still list OpenRouter as primary; use AgentAvailable for gating.
 func RequiredSecretFor(provider string) string {
 	for _, a := range Catalog {
 		if a.Provider == provider {

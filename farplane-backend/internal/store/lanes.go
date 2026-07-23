@@ -18,6 +18,41 @@ var ErrConflict = errors.New("conflict")
 // ErrForbidden is returned when the caller lacks permission.
 var ErrForbidden = errors.New("forbidden")
 
+// laneColumnNames is the column list for scanLane (explicit, no abbreviations).
+var laneColumnNames = []string{
+	"id",
+	"project_id",
+	"organization_id",
+	"owner_user_id",
+	"name",
+	"lane_kind",
+	"lane_template_id",
+	"dockerfile_snapshot",
+	"image_reference",
+	"runtime_kind",
+	"runtime_id",
+	"agent_provider",
+	"agent_provider_session_id",
+	"model_source",
+	"agent_model",
+	"reasoning_effort",
+	"status",
+	"created_at",
+	"updated_at",
+}
+
+// laneColumnsSQL builds a SELECT/RETURNING list, optionally table-qualified.
+func laneColumnsSQL(tableAlias string) string {
+	if tableAlias == "" {
+		return strings.Join(laneColumnNames, ", ")
+	}
+	parts := make([]string, len(laneColumnNames))
+	for i, name := range laneColumnNames {
+		parts[i] = tableAlias + "." + name
+	}
+	return strings.Join(parts, ", ")
+}
+
 // CreateLaneInput creates a Lane with owner participant in one transaction.
 type CreateLaneInput struct {
 	ProjectID          *string
@@ -31,6 +66,9 @@ type CreateLaneInput struct {
 	RuntimeKind        string
 	RuntimeID          *string
 	AgentProvider      string
+	ModelSource        string
+	AgentModel         string
+	ReasoningEffort    *string
 	Status             string
 }
 
@@ -62,23 +100,28 @@ func (s *Store) CreateLane(ctx context.Context, in CreateLaneInput) (models.Lane
 		return models.Lane{}, fmt.Errorf("invalid lane_kind")
 	}
 	name := strings.TrimSpace(in.Name)
+	modelSource := strings.TrimSpace(in.ModelSource)
+	if modelSource == "" {
+		return models.Lane{}, fmt.Errorf("model_source is required")
+	}
+	agentModel := strings.TrimSpace(in.AgentModel)
+	if agentModel == "" {
+		return models.Lane{}, fmt.Errorf("agent_model is required")
+	}
 	var out models.Lane
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
-		const q = `
+		q := `
 			INSERT INTO lanes (
 				project_id, organization_id, owner_user_id, name, lane_kind, lane_template_id,
 				dockerfile_snapshot, image_reference, runtime_kind, runtime_id, agent_provider,
-				status, created_at, updated_at
-			) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$13)
-			RETURNING id, project_id, organization_id, owner_user_id, name, lane_kind, lane_template_id,
-				dockerfile_snapshot, image_reference, runtime_kind, runtime_id, agent_provider,
-				agent_provider_session_id, status, created_at, updated_at
-		`
+				model_source, agent_model, reasoning_effort, status, created_at, updated_at
+			) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$16)
+			RETURNING ` + laneColumnsSQL("")
 		lane, err := scanLane(tx.QueryRow(
 			ctx, q,
 			in.ProjectID, in.OrganizationID, in.OwnerUserID, name, kind, in.LaneTemplateID,
 			in.DockerfileSnapshot, in.ImageReference, in.RuntimeKind, in.RuntimeID, in.AgentProvider,
-			in.Status, now,
+			modelSource, agentModel, in.ReasoningEffort, in.Status, now,
 		))
 		if err != nil {
 			return fmt.Errorf("insert lane: %w", err)
@@ -115,12 +158,9 @@ type GroupedLanes struct {
 // ListLanesGrouped returns org lanes the user participates in, excluding destroyed.
 // One SQL round-trip; sets HasOtherParticipants from a window count.
 func (s *Store) ListLanesGrouped(ctx context.Context, organizationID, userID string) (GroupedLanes, error) {
-	const q = `
+	q := `
 		SELECT
-			l.id, l.project_id, l.organization_id, l.owner_user_id, l.name, l.lane_kind,
-			l.lane_template_id, l.dockerfile_snapshot, l.image_reference, l.runtime_kind,
-			l.runtime_id, l.agent_provider, l.agent_provider_session_id, l.status,
-			l.created_at, l.updated_at,
+			` + laneColumnsSQL("l") + `,
 			COALESCE(p.name, '') AS project_name,
 			(
 				SELECT COUNT(*)::int FROM lane_participants lp WHERE lp.lane_id = l.id
@@ -152,7 +192,8 @@ func (s *Store) ListLanesGrouped(ctx context.Context, organizationID, userID str
 		err := rows.Scan(
 			&l.ID, &l.ProjectID, &l.OrganizationID, &l.OwnerUserID, &l.Name, &l.LaneKind,
 			&l.LaneTemplateID, &l.DockerfileSnapshot, &l.ImageReference, &l.RuntimeKind,
-			&l.RuntimeID, &l.AgentProvider, &l.AgentProviderSessionID, &l.Status,
+			&l.RuntimeID, &l.AgentProvider, &l.AgentProviderSessionID,
+			&l.ModelSource, &l.AgentModel, &l.ReasoningEffort, &l.Status,
 			&l.CreatedAt, &l.UpdatedAt,
 			&projectName, &hasOther,
 		)
@@ -192,10 +233,8 @@ func (s *Store) ListLanesGrouped(ctx context.Context, organizationID, userID str
 
 // ListRunningLanesForOrganization returns lanes with a runtime id that are running.
 func (s *Store) ListRunningLanesForOrganization(ctx context.Context, organizationID string) ([]models.Lane, error) {
-	const q = `
-		SELECT id, project_id, organization_id, owner_user_id, name, lane_kind, lane_template_id,
-			dockerfile_snapshot, image_reference, runtime_kind, runtime_id, agent_provider,
-			agent_provider_session_id, status, created_at, updated_at
+	q := `
+		SELECT ` + laneColumnsSQL("") + `
 		FROM lanes
 		WHERE organization_id = $1
 			AND runtime_id IS NOT NULL
@@ -220,11 +259,8 @@ func (s *Store) ListRunningLanesForOrganization(ctx context.Context, organizatio
 
 // ListLanesForProject returns non-destroyed lanes for a project visible to a participant.
 func (s *Store) ListLanesForProject(ctx context.Context, projectID, userID string) ([]models.Lane, error) {
-	const q = `
-		SELECT l.id, l.project_id, l.organization_id, l.owner_user_id, l.name, l.lane_kind,
-			l.lane_template_id, l.dockerfile_snapshot, l.image_reference, l.runtime_kind,
-			l.runtime_id, l.agent_provider, l.agent_provider_session_id, l.status,
-			l.created_at, l.updated_at
+	q := `
+		SELECT ` + laneColumnsSQL("l") + `
 		FROM lanes l
 		JOIN lane_participants p ON p.lane_id = l.id
 		WHERE l.project_id = $1 AND p.user_id = $2 AND l.status <> $3
@@ -248,10 +284,8 @@ func (s *Store) ListLanesForProject(ctx context.Context, projectID, userID strin
 
 // GetLane loads a lane by id.
 func (s *Store) GetLane(ctx context.Context, id string) (models.Lane, error) {
-	const q = `
-		SELECT id, project_id, organization_id, owner_user_id, name, lane_kind, lane_template_id,
-			dockerfile_snapshot, image_reference, runtime_kind, runtime_id, agent_provider,
-			agent_provider_session_id, status, created_at, updated_at
+	q := `
+		SELECT ` + laneColumnsSQL("") + `
 		FROM lanes
 		WHERE id = $1
 	`
@@ -268,14 +302,11 @@ func (s *Store) GetLane(ctx context.Context, id string) (models.Lane, error) {
 // DestroyLane archives a lane as destroyed (owner check is caller's responsibility).
 func (s *Store) DestroyLane(ctx context.Context, id string) (models.Lane, error) {
 	now := time.Now().UTC()
-	const q = `
+	q := `
 		UPDATE lanes
 		SET status = $2, updated_at = $3
 		WHERE id = $1 AND status <> $2
-		RETURNING id, project_id, organization_id, owner_user_id, name, lane_kind, lane_template_id,
-			dockerfile_snapshot, image_reference, runtime_kind, runtime_id, agent_provider,
-			agent_provider_session_id, status, created_at, updated_at
-	`
+		RETURNING ` + laneColumnsSQL("")
 	lane, err := scanLane(s.pool.QueryRow(ctx, q, id, models.LaneStatusDestroyed, now))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return models.Lane{}, ErrNotFound
@@ -289,17 +320,14 @@ func (s *Store) DestroyLane(ctx context.Context, id string) (models.Lane, error)
 // UpdateLaneRuntime updates runtime id, image, and status after create/start.
 func (s *Store) UpdateLaneRuntime(ctx context.Context, id string, runtimeID, imageRef *string, status string) (models.Lane, error) {
 	now := time.Now().UTC()
-	const q = `
+	q := `
 		UPDATE lanes
 		SET runtime_id = COALESCE($2, runtime_id),
 			image_reference = COALESCE($3, image_reference),
 			status = COALESCE(NULLIF($4, ''), status),
 			updated_at = $5
 		WHERE id = $1
-		RETURNING id, project_id, organization_id, owner_user_id, name, lane_kind, lane_template_id,
-			dockerfile_snapshot, image_reference, runtime_kind, runtime_id, agent_provider,
-			agent_provider_session_id, status, created_at, updated_at
-	`
+		RETURNING ` + laneColumnsSQL("")
 	lane, err := scanLane(s.pool.QueryRow(ctx, q, id, runtimeID, imageRef, status, now))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return models.Lane{}, ErrNotFound
@@ -310,25 +338,48 @@ func (s *Store) UpdateLaneRuntime(ctx context.Context, id string, runtimeID, ima
 	return lane, nil
 }
 
-// UpdateLaneAgentProvider switches the agent (clears provider session).
-func (s *Store) UpdateLaneAgentProvider(ctx context.Context, id, agentProvider string) (models.Lane, error) {
+// UpdateLaneAgentSettingsInput updates agent provider and/or model settings.
+type UpdateLaneAgentSettingsInput struct {
+	AgentProvider   string
+	ModelSource     string
+	AgentModel      string
+	ReasoningEffort *string
+	ClearSession    bool
+}
+
+// UpdateLaneAgentSettings updates agent provider, model source, model, and effort.
+func (s *Store) UpdateLaneAgentSettings(
+	ctx context.Context,
+	id string,
+	in UpdateLaneAgentSettingsInput,
+) (models.Lane, error) {
 	now := time.Now().UTC()
-	const q = `
+	modelSource := strings.TrimSpace(in.ModelSource)
+	if modelSource == "" {
+		return models.Lane{}, fmt.Errorf("model_source is required")
+	}
+	agentModel := strings.TrimSpace(in.AgentModel)
+	if agentModel == "" {
+		return models.Lane{}, fmt.Errorf("agent_model is required")
+	}
+	q := `
 		UPDATE lanes
 		SET agent_provider = $2,
-			agent_provider_session_id = NULL,
-			updated_at = $3
+			model_source = $3,
+			agent_model = $4,
+			reasoning_effort = $5,
+			agent_provider_session_id = CASE WHEN $6 THEN NULL ELSE agent_provider_session_id END,
+			updated_at = $7
 		WHERE id = $1
-		RETURNING id, project_id, organization_id, owner_user_id, name, lane_kind, lane_template_id,
-			dockerfile_snapshot, image_reference, runtime_kind, runtime_id, agent_provider,
-			agent_provider_session_id, status, created_at, updated_at
-	`
-	lane, err := scanLane(s.pool.QueryRow(ctx, q, id, agentProvider, now))
+		RETURNING ` + laneColumnsSQL("")
+	lane, err := scanLane(s.pool.QueryRow(
+		ctx, q, id, in.AgentProvider, modelSource, agentModel, in.ReasoningEffort, in.ClearSession, now,
+	))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return models.Lane{}, ErrNotFound
 	}
 	if err != nil {
-		return models.Lane{}, fmt.Errorf("update lane agent: %w", err)
+		return models.Lane{}, fmt.Errorf("update lane agent settings: %w", err)
 	}
 	return lane, nil
 }
@@ -377,7 +428,8 @@ func scanLane(row scannable) (models.Lane, error) {
 	err := row.Scan(
 		&l.ID, &l.ProjectID, &l.OrganizationID, &l.OwnerUserID, &l.Name, &l.LaneKind, &l.LaneTemplateID,
 		&l.DockerfileSnapshot, &l.ImageReference, &l.RuntimeKind, &l.RuntimeID, &l.AgentProvider,
-		&l.AgentProviderSessionID, &l.Status, &l.CreatedAt, &l.UpdatedAt,
+		&l.AgentProviderSessionID, &l.ModelSource, &l.AgentModel, &l.ReasoningEffort, &l.Status,
+		&l.CreatedAt, &l.UpdatedAt,
 	)
 	if err != nil {
 		return models.Lane{}, err

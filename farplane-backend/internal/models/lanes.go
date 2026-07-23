@@ -80,21 +80,21 @@ const (
 
 // LaneTemplate is an org-editable Dockerfile used to spawn Lanes.
 type LaneTemplate struct {
-	ID                   string
-	OrganizationID       string
-	Name                 string
-	Description          string
-	DockerfileText       string
-	IsSystemDefault      bool
-	ForkedFromTemplateID *string
-	CreatedByUserID      *string
-	UpdatedByUserID      *string
-	ValidationStatus     string
-	ValidatedImageReference    *string
-	LastValidationLog    *string
-	ValidatedAt          *time.Time
-	CreatedAt            time.Time
-	UpdatedAt            time.Time
+	ID                      string
+	OrganizationID          string
+	Name                    string
+	Description             string
+	DockerfileText          string
+	IsSystemDefault         bool
+	ForkedFromTemplateID    *string
+	CreatedByUserID         *string
+	UpdatedByUserID         *string
+	ValidationStatus        string
+	ValidatedImageReference *string
+	LastValidationLog       *string
+	ValidatedAt             *time.Time
+	CreatedAt               time.Time
+	UpdatedAt               time.Time
 }
 
 // OrganizationSecretMeta is a secret name without the decrypted value.
@@ -119,6 +119,9 @@ type Lane struct {
 	RuntimeID              *string
 	AgentProvider          string
 	AgentProviderSessionID *string
+	ModelSource            string
+	AgentModel             string
+	ReasoningEffort        *string
 	Status                 string
 	CreatedAt              time.Time
 	UpdatedAt              time.Time

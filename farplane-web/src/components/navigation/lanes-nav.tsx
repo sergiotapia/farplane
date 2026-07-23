@@ -1,6 +1,6 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { useMemo, useState, type ReactElement } from 'react'
+import { useEffect, useMemo, useState, type ReactElement } from 'react'
 import {
   ChevronRightIcon,
   FolderIcon,
@@ -39,16 +39,40 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { getLanes, lanesQueryKey, type Lane } from '@/lib/api'
+import {
+  getLanes,
+  lanesQueryKey,
+  lanesTurnWebSocketURL,
+  type GroupedLanes,
+  type Lane,
+} from '@/lib/api'
 import { cn } from '@/lib/utils'
 
 type LaneStatus = 'idle' | 'working'
 
 function laneStatus(lane: Lane): LaneStatus {
-  return lane.status === 'running' ? 'working' : 'idle'
+  return lane.turn_running ? 'working' : 'idle'
+}
+
+function patchTurnRunning(
+  data: GroupedLanes,
+  turns: Record<string, boolean>,
+): GroupedLanes {
+  const patch = (lane: Lane): Lane => {
+    if (!(lane.id in turns)) return lane
+    return { ...lane, turn_running: turns[lane.id] }
+  }
+  return {
+    projects: data.projects.map((group) => ({
+      ...group,
+      lanes: group.lanes.map(patch),
+    })),
+    scratch_lanes: data.scratch_lanes.map(patch),
+  }
 }
 
 export function LanesNav() {
+  const queryClient = useQueryClient()
   const [createOpen, setCreateOpen] = useState(false)
   const [createPrefill, setCreatePrefill] = useState<CreateLanePrefill>({
     mode: 'pick',
@@ -62,6 +86,61 @@ export function LanesNav() {
 
   const projectGroups = lanesQuery.data?.projects ?? []
   const scratchLanes = lanesQuery.data?.scratch_lanes ?? []
+
+  const laneIdsKey = useMemo(() => {
+    const ids: string[] = []
+    for (const group of projectGroups) {
+      for (const lane of group.lanes) {
+        ids.push(lane.id)
+      }
+    }
+    for (const lane of scratchLanes) {
+      ids.push(lane.id)
+    }
+    return ids.join(',')
+  }, [projectGroups, scratchLanes])
+
+  useEffect(() => {
+    const laneIds = laneIdsKey === '' ? [] : laneIdsKey.split(',')
+    const ws = new WebSocket(lanesTurnWebSocketURL())
+    ws.onopen = () => {
+      ws.send(JSON.stringify({ type: 'watch', lane_ids: laneIds }))
+    }
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data as string) as {
+          type?: string
+          lane_id?: string
+          turn_running?: boolean
+          turns?: Record<string, boolean>
+        }
+        if (data.type === 'snapshot' && data.turns) {
+          queryClient.setQueryData<GroupedLanes>(lanesQueryKey, (prev) =>
+            prev ? patchTurnRunning(prev, data.turns!) : prev,
+          )
+          return
+        }
+        if (
+          data.type === 'turn' &&
+          data.lane_id &&
+          typeof data.turn_running === 'boolean'
+        ) {
+          queryClient.setQueryData<GroupedLanes>(lanesQueryKey, (prev) =>
+            prev
+              ? patchTurnRunning(prev, {
+                  [data.lane_id!]: data.turn_running!,
+                })
+              : prev,
+          )
+        }
+      } catch {
+        // ignore malformed frames
+      }
+    }
+    return () => {
+      ws.close()
+    }
+  }, [laneIdsKey, queryClient])
 
   const defaultOpen = useMemo(() => {
     const entries = projectGroups.map((group) => [

@@ -494,6 +494,148 @@ func TestParticipantsHardDeleteAndInviteMultiUse(t *testing.T) {
 	}
 }
 
+func TestPatchLaneModelAndAgentSwitchDefaults(t *testing.T) {
+	engine, cookie, st, _, principal, _ := setupLaneTest(t)
+	if err := st.SetOrganizationSecret(
+		context.Background(),
+		principal.orgID,
+		models.SecretNameOpenAIAPIKey,
+		"sk-openai",
+		testConfig().SessionSecret,
+		principal.userID,
+	); err != nil {
+		t.Fatalf("SetOrganizationSecret openai: %v", err)
+	}
+	tmpl, err := st.GetSystemDefaultLaneTemplate(context.Background(), principal.orgID)
+	if err != nil {
+		t.Fatalf("template: %v", err)
+	}
+
+	lane := createLaneHTTP(t, engine, cookie, map[string]any{
+		"name":             "Settings",
+		"lane_template_id": tmpl.ID,
+		"agent_provider":   models.AgentProviderClaudeCode,
+	})
+	if lane["model_source"] != "anthropic" {
+		t.Fatalf("create model_source = %#v", lane["model_source"])
+	}
+	if lane["agent_model"] != "claude-sonnet-4-5" {
+		t.Fatalf("create agent_model = %#v", lane["agent_model"])
+	}
+	if lane["reasoning_effort"] != "medium" {
+		t.Fatalf("create reasoning_effort = %#v", lane["reasoning_effort"])
+	}
+	laneID, _ := lane["id"].(string)
+
+	modelsReq := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/lane-agents/"+models.AgentProviderClaudeCode+"/models?source=anthropic",
+		nil,
+	)
+	modelsReq.AddCookie(cookie)
+	modelsRec := httptest.NewRecorder()
+	engine.ServeHTTP(modelsRec, modelsReq)
+	if modelsRec.Code != http.StatusOK {
+		t.Fatalf("list models = %d body=%s", modelsRec.Code, modelsRec.Body.String())
+	}
+	var modelList struct {
+		Models []map[string]any `json:"models"`
+	}
+	if err := json.Unmarshal(modelsRec.Body.Bytes(), &modelList); err != nil {
+		t.Fatalf("decode models: %v", err)
+	}
+	if len(modelList.Models) < 1 {
+		t.Fatal("expected static claude models")
+	}
+
+	// Reject unknown model.
+	badBody, err := json.Marshal(map[string]any{"agent_model": "not-real"})
+	if err != nil {
+		t.Fatalf("marshal bad model: %v", err)
+	}
+	badReq := httptest.NewRequest(http.MethodPatch, "/api/v1/lanes/"+laneID, bytes.NewReader(badBody))
+	badReq.Header.Set("Content-Type", "application/json")
+	badReq.AddCookie(cookie)
+	badRec := httptest.NewRecorder()
+	engine.ServeHTTP(badRec, badReq)
+	if badRec.Code != http.StatusBadRequest {
+		t.Fatalf("bad model = %d body=%s", badRec.Code, badRec.Body.String())
+	}
+
+	// Reject invalid reasoning effort.
+	badEffortBody, err := json.Marshal(map[string]any{
+		"agent_model":      "claude-sonnet-4-5",
+		"reasoning_effort": "not-an-effort",
+	})
+	if err != nil {
+		t.Fatalf("marshal bad effort: %v", err)
+	}
+	badEffortReq := httptest.NewRequest(http.MethodPatch, "/api/v1/lanes/"+laneID, bytes.NewReader(badEffortBody))
+	badEffortReq.Header.Set("Content-Type", "application/json")
+	badEffortReq.AddCookie(cookie)
+	badEffortRec := httptest.NewRecorder()
+	engine.ServeHTTP(badEffortRec, badEffortReq)
+	if badEffortRec.Code != http.StatusBadRequest {
+		t.Fatalf("bad effort = %d body=%s", badEffortRec.Code, badEffortRec.Body.String())
+	}
+
+	// Patch model + effort.
+	patchBody, err := json.Marshal(map[string]any{
+		"agent_model":      "claude-opus-4-5",
+		"reasoning_effort": "high",
+	})
+	if err != nil {
+		t.Fatalf("marshal patch: %v", err)
+	}
+	patchReq := httptest.NewRequest(http.MethodPatch, "/api/v1/lanes/"+laneID, bytes.NewReader(patchBody))
+	patchReq.Header.Set("Content-Type", "application/json")
+	patchReq.AddCookie(cookie)
+	patchRec := httptest.NewRecorder()
+	engine.ServeHTTP(patchRec, patchReq)
+	if patchRec.Code != http.StatusOK {
+		t.Fatalf("patch model = %d body=%s", patchRec.Code, patchRec.Body.String())
+	}
+	var patched map[string]any
+	if err := json.Unmarshal(patchRec.Body.Bytes(), &patched); err != nil {
+		t.Fatalf("decode patched: %v", err)
+	}
+	if patched["agent_model"] != "claude-opus-4-5" || patched["reasoning_effort"] != "high" {
+		t.Fatalf("patched = %#v", patched)
+	}
+
+	// Switch agent → invalid prior model resets to Codex default.
+	switchBody, err := json.Marshal(map[string]any{
+		"agent_provider": models.AgentProviderCodex,
+	})
+	if err != nil {
+		t.Fatalf("marshal switch: %v", err)
+	}
+	switchReq := httptest.NewRequest(http.MethodPatch, "/api/v1/lanes/"+laneID, bytes.NewReader(switchBody))
+	switchReq.Header.Set("Content-Type", "application/json")
+	switchReq.AddCookie(cookie)
+	switchRec := httptest.NewRecorder()
+	engine.ServeHTTP(switchRec, switchReq)
+	if switchRec.Code != http.StatusOK {
+		t.Fatalf("switch agent = %d body=%s", switchRec.Code, switchRec.Body.String())
+	}
+	var switched map[string]any
+	if err := json.Unmarshal(switchRec.Body.Bytes(), &switched); err != nil {
+		t.Fatalf("decode switched: %v", err)
+	}
+	if switched["agent_provider"] != models.AgentProviderCodex {
+		t.Fatalf("provider = %#v", switched["agent_provider"])
+	}
+	if switched["model_source"] != "openai" {
+		t.Fatalf("switched model_source = %#v", switched["model_source"])
+	}
+	if switched["agent_model"] != "gpt-5.1-codex" {
+		t.Fatalf("switched model = %#v, want gpt-5.1-codex", switched["agent_model"])
+	}
+	if switched["reasoning_effort"] != "medium" {
+		t.Fatalf("switched effort = %#v", switched["reasoning_effort"])
+	}
+}
+
 func TestStoreLaneKindConstraints(t *testing.T) {
 	_, _, st, _, principal, _ := setupLaneTest(t)
 	tmpl, err := st.GetSystemDefaultLaneTemplate(context.Background(), principal.orgID)
@@ -503,6 +645,7 @@ func TestStoreLaneKindConstraints(t *testing.T) {
 	img := "farplane/test:latest"
 	tid := tmpl.ID
 
+	medium := "medium"
 	_, err = st.CreateLane(context.Background(), store.CreateLaneInput{
 		OrganizationID:     principal.orgID,
 		OwnerUserID:        principal.userID,
@@ -512,6 +655,9 @@ func TestStoreLaneKindConstraints(t *testing.T) {
 		DockerfileSnapshot: "FROM scratch",
 		ImageReference:     &img,
 		AgentProvider:      models.AgentProviderClaudeCode,
+		ModelSource:        "anthropic",
+		AgentModel:         "claude-sonnet-4-5",
+		ReasoningEffort:    &medium,
 	})
 	if err == nil {
 		t.Fatal("expected error for project lane without project_id")
@@ -526,6 +672,9 @@ func TestStoreLaneKindConstraints(t *testing.T) {
 		DockerfileSnapshot: "FROM scratch",
 		ImageReference:     &img,
 		AgentProvider:      models.AgentProviderClaudeCode,
+		ModelSource:        "anthropic",
+		AgentModel:         "claude-sonnet-4-5",
+		ReasoningEffort:    &medium,
 	})
 	if err != nil {
 		t.Fatalf("CreateLane scratch: %v", err)

@@ -333,6 +333,8 @@ export const projectLanesQueryKey = (projectId: string) =>
 export const laneQueryKey = (laneId: string) => ['lanes', laneId] as const
 export const laneMessagesQueryKey = (laneId: string) =>
   ['lanes', laneId, 'messages'] as const
+export const laneAgentModelsQueryKey = (provider: string, source: string) =>
+  ['lane-agents', provider, 'models', source] as const
 export const laneParticipantsQueryKey = (laneId: string) =>
   ['lanes', laneId, 'participants'] as const
 export const laneActiveInviteQueryKey = (laneId: string) =>
@@ -363,11 +365,26 @@ export type OrganizationSecret = {
   updated_at?: string | null
 }
 
+export type LaneAgentModelSource = {
+  id: string
+  label: string
+}
+
 export type LaneAgent = {
   provider: string
   label: string
   required_secret: string
   available: boolean
+  model_sources: LaneAgentModelSource[]
+}
+
+/** Model option for a lane agent + model source. */
+export type LaneAgentModel = {
+  id: string
+  label: string
+  reasoning_efforts: string[]
+  default_reasoning_effort?: string | null
+  supports_reasoning: boolean
 }
 
 export type LaneKind = 'project' | 'scratch'
@@ -385,7 +402,11 @@ export type Lane = {
   runtime_id?: string | null
   agent_provider: string
   agent_provider_session_id?: string | null
+  model_source?: string | null
+  agent_model?: string | null
+  reasoning_effort?: string | null
   status: string
+  turn_running?: boolean
   has_other_participants?: boolean
   created_at: string
   updated_at: string
@@ -543,6 +564,16 @@ export function getLaneAgents(): Promise<{ agents: LaneAgent[] }> {
   return apiFetch('/api/v1/lane-agents')
 }
 
+export function getLaneAgentModels(
+  provider: string,
+  source: string,
+): Promise<{ models: LaneAgentModel[] }> {
+  const params = new URLSearchParams({ source })
+  return apiFetch(
+    `/api/v1/lane-agents/${encodeURIComponent(provider)}/models?${params}`,
+  )
+}
+
 export function getLanes(): Promise<GroupedLanes> {
   return apiFetch('/api/v1/lanes')
 }
@@ -577,7 +608,13 @@ export async function destroyLane(laneId: string): Promise<void> {
 
 export function patchLane(
   laneId: string,
-  payload: { agent_provider?: string; name?: string },
+  payload: {
+    agent_provider?: string
+    name?: string
+    model_source?: string
+    agent_model?: string
+    reasoning_effort?: string | null
+  },
 ): Promise<Lane> {
   return apiFetch(`/api/v1/lanes/${laneId}`, {
     method: 'PATCH',
@@ -702,6 +739,15 @@ export function laneWebSocketURL(laneId: string): string {
   const base = new URL(API_BASE_URL)
   base.protocol = base.protocol === 'https:' ? 'wss:' : 'ws:'
   base.pathname = `/api/v1/lanes/${laneId}/ws`
+  base.search = ''
+  return base.toString()
+}
+
+/** Browser WebSocket URL for sidebar turn_running updates across lanes. */
+export function lanesTurnWebSocketURL(): string {
+  const base = new URL(API_BASE_URL)
+  base.protocol = base.protocol === 'https:' ? 'wss:' : 'ws:'
+  base.pathname = '/api/v1/lanes/turns/ws'
   base.search = ''
   return base.toString()
 }

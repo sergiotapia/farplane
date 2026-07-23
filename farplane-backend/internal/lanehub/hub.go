@@ -14,10 +14,22 @@ type Client struct {
 	Send   chan []byte
 }
 
+// StatusClient receives cross-lane turn busy updates for the sidebar.
+type StatusClient struct {
+	UserID string
+	Send   chan []byte
+
+	mu     sync.Mutex
+	lanes  map[string]struct{}
+}
+
 // Hub manages per-Lane subscribers and in-memory turn locks.
 type Hub struct {
 	mu    sync.RWMutex
 	lanes map[string]*laneRoom
+
+	statusMu      sync.Mutex
+	statusClients map[*StatusClient]struct{}
 }
 
 type laneRoom struct {
@@ -30,7 +42,10 @@ type laneRoom struct {
 
 // New builds an empty hub.
 func New() *Hub {
-	return &Hub{lanes: make(map[string]*laneRoom)}
+	return &Hub{
+		lanes:         make(map[string]*laneRoom),
+		statusClients: make(map[*StatusClient]struct{}),
+	}
 }
 
 func (h *Hub) room(laneID string) *laneRoom {
@@ -66,6 +81,49 @@ func (h *Hub) Unsubscribe(laneID string, c *Client) {
 		close(c.Send)
 	}
 	r.clientsMu.Unlock()
+}
+
+// SubscribeStatus adds a sidebar turn-status subscriber.
+func (h *Hub) SubscribeStatus(c *StatusClient) {
+	h.statusMu.Lock()
+	h.statusClients[c] = struct{}{}
+	h.statusMu.Unlock()
+}
+
+// UnsubscribeStatus removes a sidebar turn-status subscriber.
+func (h *Hub) UnsubscribeStatus(c *StatusClient) {
+	h.statusMu.Lock()
+	if _, ok := h.statusClients[c]; ok {
+		delete(h.statusClients, c)
+		close(c.Send)
+	}
+	h.statusMu.Unlock()
+}
+
+// SetStatusWatches replaces the lane ids a status client cares about.
+func (h *Hub) SetStatusWatches(c *StatusClient, laneIDs []string) {
+	next := make(map[string]struct{}, len(laneIDs))
+	for _, id := range laneIDs {
+		if id == "" {
+			continue
+		}
+		next[id] = struct{}{}
+	}
+	c.mu.Lock()
+	c.lanes = next
+	c.mu.Unlock()
+}
+
+// TurnSnapshot returns busy flags for the given lane ids.
+func (h *Hub) TurnSnapshot(laneIDs []string) map[string]bool {
+	out := make(map[string]bool, len(laneIDs))
+	for _, id := range laneIDs {
+		if id == "" {
+			continue
+		}
+		out[id] = h.IsTurnBusy(id)
+	}
+	return out
 }
 
 // DropUser closes all connections for a user on a lane (kick).
@@ -139,11 +197,13 @@ func MessageDTO(msg models.LaneMessage) map[string]any {
 func (h *Hub) TryBeginTurn(laneID string) bool {
 	r := h.room(laneID)
 	r.turnMu.Lock()
-	defer r.turnMu.Unlock()
 	if r.busy {
+		r.turnMu.Unlock()
 		return false
 	}
 	r.busy = true
+	r.turnMu.Unlock()
+	h.notifyTurn(laneID, true)
 	return true
 }
 
@@ -151,8 +211,12 @@ func (h *Hub) TryBeginTurn(laneID string) bool {
 func (h *Hub) EndTurn(laneID string) {
 	r := h.room(laneID)
 	r.turnMu.Lock()
+	wasBusy := r.busy
 	r.busy = false
 	r.turnMu.Unlock()
+	if wasBusy {
+		h.notifyTurn(laneID, false)
+	}
 }
 
 // IsTurnBusy reports whether a turn is in progress.
@@ -161,4 +225,34 @@ func (h *Hub) IsTurnBusy(laneID string) bool {
 	r.turnMu.Lock()
 	defer r.turnMu.Unlock()
 	return r.busy
+}
+
+func (h *Hub) notifyTurn(laneID string, running bool) {
+	data, err := json.Marshal(map[string]any{
+		"type":         "turn",
+		"lane_id":      laneID,
+		"turn_running": running,
+	})
+	if err != nil {
+		return
+	}
+	h.statusMu.Lock()
+	clients := make([]*StatusClient, 0, len(h.statusClients))
+	for c := range h.statusClients {
+		clients = append(clients, c)
+	}
+	h.statusMu.Unlock()
+
+	for _, c := range clients {
+		c.mu.Lock()
+		_, watch := c.lanes[laneID]
+		c.mu.Unlock()
+		if !watch {
+			continue
+		}
+		select {
+		case c.Send <- data:
+		default:
+		}
+	}
 }

@@ -535,7 +535,8 @@ func acceptLaneInviteTx(
 	lane, err := scanLane(tx.QueryRow(ctx, `
 		SELECT id, project_id, organization_id, owner_user_id, name, lane_kind, lane_template_id,
 			dockerfile_snapshot, image_reference, runtime_kind, runtime_id, agent_provider,
-			agent_provider_session_id, status, created_at, updated_at
+			agent_provider_session_id, model_source, agent_model, reasoning_effort, status,
+			created_at, updated_at
 		FROM lanes WHERE id = $1
 	`, inv.LaneID))
 	if err != nil {

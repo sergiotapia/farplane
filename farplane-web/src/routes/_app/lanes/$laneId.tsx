@@ -1,21 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  Link,
   createFileRoute,
   useNavigate,
   useRouteContext,
 } from '@tanstack/react-router'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 
+import { LaneAgentStrip } from '@/components/lanes/lane-agent-strip'
+import { LaneConversationPanel } from '@/components/lanes/lane-conversation-panel'
+import { LaneMembersDialog } from '@/components/lanes/lane-members-dialog'
+import { LanePreviewPanel } from '@/components/lanes/lane-preview-panel'
 import { Button } from '@/components/ui/button'
-import {
-  Combobox,
-  ComboboxContent,
-  ComboboxEmpty,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxList,
-} from '@/components/ui/combobox'
 import {
   Dialog,
   DialogContent,
@@ -24,35 +19,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import {
   ApiError,
-  addLaneParticipant,
-  createLaneInvite,
   destroyLane,
-  getActiveLaneInvite,
   getLane,
-  getLaneAgents,
-  getLaneMessages,
-  getLaneParticipants,
-  getOrganizationMembers,
-  laneActiveInviteQueryKey,
-  laneAgentsQueryKey,
-  laneMessagesQueryKey,
-  laneParticipantsQueryKey,
   laneQueryKey,
   laneWebSocketURL,
   lanesQueryKey,
   leaveLane,
-  organizationMembersQueryKey,
-  patchLane,
-  postLaneMessage,
-  regenerateLaneInvite,
-  removeLaneParticipant,
-  revokeActiveLaneInvite,
-  type LaneAgent,
-  type LaneMessage,
 } from '@/lib/api'
 
 type LaneSearch = {
@@ -63,24 +37,18 @@ export const Route = createFileRoute('/_app/lanes/$laneId')({
   validateSearch: (search: Record<string, unknown>): LaneSearch => ({
     panel: search.panel === 'members' ? 'members' : undefined,
   }),
-  component: LaneChatPage,
+  component: LaneDetailPage,
 })
 
-function LaneChatPage() {
+function LaneDetailPage() {
   const { laneId } = Route.useParams()
   const { panel } = Route.useSearch()
   const navigate = useNavigate()
   const { me } = useRouteContext({ from: '/_app' })
   const queryClient = useQueryClient()
-  const [text, setText] = useState('')
-  const [partial, setPartial] = useState('')
-  const [addMember, setAddMember] = useState<{
-    id: string
-    display_name: string
-    email: string
-  } | null>(null)
-  const [membersError, setMembersError] = useState<string | null>(null)
   const [destroyDialogOpen, setDestroyDialogOpen] = useState(false)
+  const [wsReady, setWsReady] = useState<WebSocket | null>(null)
+  const [turnRunning, setTurnRunning] = useState(false)
 
   const membersOpen = panel === 'members'
 
@@ -88,50 +56,13 @@ function LaneChatPage() {
     queryKey: laneQueryKey(laneId),
     queryFn: () => getLane(laneId),
   })
-  const messagesQuery = useQuery({
-    queryKey: laneMessagesQueryKey(laneId),
-    queryFn: () => getLaneMessages(laneId),
-  })
-  const participantsQuery = useQuery({
-    queryKey: laneParticipantsQueryKey(laneId),
-    queryFn: () => getLaneParticipants(laneId),
-  })
-  const agentsQuery = useQuery({
-    queryKey: laneAgentsQueryKey,
-    queryFn: getLaneAgents,
-  })
-  const membersQuery = useQuery({
-    queryKey: organizationMembersQueryKey,
-    queryFn: getOrganizationMembers,
-    enabled: membersOpen,
-  })
-  const activeInviteQuery = useQuery({
-    queryKey: laneActiveInviteQueryKey(laneId),
-    queryFn: () => getActiveLaneInvite(laneId),
-    enabled: membersOpen,
-    retry: false,
-  })
 
   const lane = laneQuery.data
-  const messages = messagesQuery.data?.messages ?? []
-  const participants = participantsQuery.data?.participants ?? []
-  const availableAgents = useMemo(
-    () => (agentsQuery.data?.agents ?? []).filter((a) => a.available),
-    [agentsQuery.data],
-  )
   const isOwner = lane?.owner_user_id === me.user.id
-  const seatedIds = useMemo(
-    () => new Set(participants.map((p) => p.user_id)),
-    [participants],
-  )
-  const addableMembers = useMemo(
-    () =>
-      (membersQuery.data?.members ?? []).filter((m) => !seatedIds.has(m.id)),
-    [membersQuery.data, seatedIds],
-  )
 
-  const [wsReady, setWsReady] = useState<WebSocket | null>(null)
-  const [turnRunning, setTurnRunning] = useState(false)
+  useEffect(() => {
+    setTurnRunning(Boolean(lane?.turn_running))
+  }, [laneId, lane?.turn_running])
 
   useEffect(() => {
     const url = laneWebSocketURL(laneId)
@@ -141,39 +72,13 @@ function LaneChatPage() {
       try {
         const data = JSON.parse(event.data as string) as {
           type?: string
-          message?: LaneMessage
           event?: {
             type?: string
-            body?: string
-            done?: boolean
             status?: string
           }
         }
-        if (data.type === 'timeline' && data.message) {
-          void queryClient.invalidateQueries({
-            queryKey: laneMessagesQueryKey(laneId),
-          })
-          setPartial('')
-        }
         if (data.type === 'partial' && data.event?.type === 'status') {
           setTurnRunning(data.event.status === 'running')
-          if (data.event.status === 'idle') {
-            setPartial('')
-            void queryClient.invalidateQueries({
-              queryKey: laneMessagesQueryKey(laneId),
-            })
-          }
-        }
-        if (data.type === 'partial' && data.event?.type === 'assistant_message') {
-          if (data.event.body) {
-            setPartial((prev) => prev + data.event!.body)
-          }
-          if (data.event.done) {
-            void queryClient.invalidateQueries({
-              queryKey: laneMessagesQueryKey(laneId),
-            })
-            setPartial('')
-          }
         }
       } catch {
         // ignore malformed frames
@@ -183,7 +88,7 @@ function LaneChatPage() {
       ws.close()
       setWsReady(null)
     }
-  }, [laneId, queryClient])
+  }, [laneId])
 
   function closeMembersPanel() {
     void navigate({
@@ -200,55 +105,6 @@ function LaneChatPage() {
       search: { panel: 'members' },
     })
   }
-
-  async function refreshAfterPeopleChange() {
-    await queryClient.invalidateQueries({
-      queryKey: laneParticipantsQueryKey(laneId),
-    })
-    await queryClient.invalidateQueries({ queryKey: lanesQueryKey })
-  }
-
-  const sendMutation = useMutation({
-    mutationFn: () => postLaneMessage(laneId, text),
-    onSuccess: async () => {
-      setText('')
-      await queryClient.invalidateQueries({
-        queryKey: laneMessagesQueryKey(laneId),
-      })
-    },
-  })
-
-  const switchMutation = useMutation({
-    mutationFn: (agent: LaneAgent) =>
-      patchLane(laneId, { agent_provider: agent.provider }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: laneQueryKey(laneId) })
-      await queryClient.invalidateQueries({
-        queryKey: laneMessagesQueryKey(laneId),
-      })
-    },
-  })
-
-  const addMutation = useMutation({
-    mutationFn: (userId: string) => addLaneParticipant(laneId, userId),
-    onSuccess: async () => {
-      setAddMember(null)
-      setMembersError(null)
-      await refreshAfterPeopleChange()
-    },
-    onError: (err) => {
-      setMembersError(
-        err instanceof ApiError ? err.message : 'Could not add participant',
-      )
-    },
-  })
-
-  const removeMutation = useMutation({
-    mutationFn: (userId: string) => removeLaneParticipant(laneId, userId),
-    onSuccess: async () => {
-      await refreshAfterPeopleChange()
-    },
-  })
 
   const leaveMutation = useMutation({
     mutationFn: () => leaveLane(laneId),
@@ -267,79 +123,30 @@ function LaneChatPage() {
     },
   })
 
-  const ensureInviteMutation = useMutation({
-    mutationFn: () => createLaneInvite(laneId),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: laneActiveInviteQueryKey(laneId),
-      })
-    },
-  })
-
-  const regenerateInviteMutation = useMutation({
-    mutationFn: () => regenerateLaneInvite(laneId),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: laneActiveInviteQueryKey(laneId),
-      })
-    },
-  })
-
-  const revokeInviteMutation = useMutation({
-    mutationFn: () => revokeActiveLaneInvite(laneId),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: laneActiveInviteQueryKey(laneId),
-      })
-    },
-  })
-
-  const activeInvite =
-    activeInviteQuery.isSuccess ? activeInviteQuery.data : null
-
-  const timeline = messages.filter(
-    (m) =>
-      m.event_type === 'user_message' ||
-      m.event_type === 'assistant_message' ||
-      m.event_type === 'agent_changed' ||
-      m.event_type === 'participant_joined' ||
-      m.event_type === 'participant_removed',
-  )
-
   return (
-    <div className="mx-auto grid w-full max-w-5xl gap-6 lg:grid-cols-[1fr_16rem]">
-      <div className="space-y-4">
-        <div className="space-y-1">
-          {lane?.project_id ? (
-            <p className="text-muted-foreground text-sm">
-              <Link
-                to="/projects/$projectId"
-                params={{ projectId: lane.project_id }}
-                className="underline underline-offset-4"
-              >
-                Project
-              </Link>
-            </p>
-          ) : lane ? (
-            <p className="text-muted-foreground text-sm">No project</p>
-          ) : null}
-          <h1 className="text-2xl font-semibold tracking-tight">
+    <div className="-m-6 flex min-h-[calc(100dvh-3rem)] flex-col">
+      <div className="flex items-start justify-between gap-6 px-6 pt-5 pb-4">
+        <div className="flex min-w-0 flex-col gap-1.5">
+          <h1 className="truncate text-2xl font-semibold tracking-[-0.02em] text-foreground">
             {lane?.name ?? 'Lane'}
           </h1>
-          <p className="text-muted-foreground text-sm">
-            Agent:{' '}
-            <span className="text-foreground font-medium">
-              {lane?.agent_provider ?? '…'}
-            </span>{' '}
-            · {lane?.status}
-          </p>
+          <div className="flex items-center gap-2">
+            {turnRunning ? (
+              <span className="size-2 shrink-0 rounded-full bg-[#16A34A]" />
+            ) : (
+              <span className="size-2 shrink-0 rounded-full bg-muted-foreground/40" />
+            )}
+            <p className="text-[13px] leading-[18px] text-muted-foreground">
+              {turnRunning ? 'Agent running' : 'Idle'}
+            </p>
+          </div>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <Button
             type="button"
-            size="sm"
             variant="outline"
+            className="h-9 px-3.5"
             onClick={openMembersPanel}
           >
             Members
@@ -347,8 +154,8 @@ function LaneChatPage() {
           {!isOwner ? (
             <Button
               type="button"
-              size="sm"
               variant="outline"
+              className="h-9 px-3.5"
               disabled={leaveMutation.isPending}
               onClick={() => {
                 if (!window.confirm('Leave this Lane?')) return
@@ -360,8 +167,8 @@ function LaneChatPage() {
           ) : (
             <Button
               type="button"
-              size="sm"
               variant="destructive"
+              className="h-9 bg-destructive px-3.5 text-white hover:bg-destructive/90"
               disabled={destroyMutation.isPending}
               onClick={() => {
                 if (destroyMutation.isError) destroyMutation.reset()
@@ -372,132 +179,31 @@ function LaneChatPage() {
             </Button>
           )}
         </div>
-
-        <div className="flex min-h-[360px] flex-col gap-3 rounded-md border p-3">
-          <div className="flex-1 space-y-3 overflow-y-auto">
-            {timeline.map((m) => (
-              <div key={m.id} className="text-sm">
-                <p className="text-muted-foreground text-xs">
-                  {m.event_type}
-                  {m.author_user_id ? ` · ${m.author_user_id.slice(0, 8)}` : ''}
-                </p>
-                <p className="whitespace-pre-wrap">{m.body}</p>
-              </div>
-            ))}
-            {partial ? (
-              <div className="text-sm">
-                <p className="text-muted-foreground text-xs">assistant…</p>
-                <p className="whitespace-pre-wrap">{partial}</p>
-              </div>
-            ) : null}
-          </div>
-          <form
-            className="flex gap-2"
-            onSubmit={(e) => {
-              e.preventDefault()
-              if (!text.trim()) return
-              sendMutation.mutate()
-            }}
-          >
-            <Input
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder="Message the Lane…"
-              disabled={sendMutation.isPending || turnRunning}
-            />
-            <Button
-              type="submit"
-              disabled={!text.trim() || sendMutation.isPending || turnRunning}
-            >
-              Send
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={
-                !turnRunning || !wsReady || wsReady.readyState !== WebSocket.OPEN
-              }
-              onClick={() => {
-                wsReady?.send(JSON.stringify({ type: 'interrupt' }))
-                setTurnRunning(false)
-              }}
-            >
-              Stop
-            </Button>
-          </form>
-          {sendMutation.isError ? (
-            <p className="text-destructive text-sm">
-              {sendMutation.error.message}
-            </p>
-          ) : null}
-        </div>
       </div>
 
-      <aside className="space-y-6">
-        {isOwner ? (
-          <div className="space-y-2">
-            <Label>Switch agent</Label>
-            <Combobox
-              items={availableAgents}
-              onValueChange={(agent: LaneAgent | null) => {
-                if (!agent) return
-                if (
-                  !window.confirm(
-                    'Switching agents starts a new AI session. Farplane will hand off a summary of this chat. Files in the Lane computer stay as they are.',
-                  )
-                ) {
-                  return
-                }
-                switchMutation.mutate(agent)
-              }}
-              itemToStringLabel={(a: LaneAgent) => a.label}
-              itemToStringValue={(a: LaneAgent) => a.provider}
-              isItemEqualToValue={(a: LaneAgent, b: LaneAgent) =>
-                a.provider === b.provider
-              }
-            >
-              <ComboboxInput placeholder="Choose agent" className="w-full" />
-              <ComboboxContent>
-                <ComboboxEmpty>No available agents</ComboboxEmpty>
-                <ComboboxList>
-                  {(a: LaneAgent) => (
-                    <ComboboxItem key={a.provider} value={a}>
-                      {a.label}
-                    </ComboboxItem>
-                  )}
-                </ComboboxList>
-              </ComboboxContent>
-            </Combobox>
-            {switchMutation.isError ? (
-              <p className="text-destructive text-xs">
-                {switchMutation.error.message}
-              </p>
-            ) : null}
-          </div>
-        ) : null}
-
-        <div className="space-y-2">
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="text-sm font-medium">Participants</h2>
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              onClick={openMembersPanel}
-            >
-              Manage
-            </Button>
-          </div>
-          <ul className="space-y-1 text-sm">
-            {participants.map((p) => (
-              <li key={p.id} className="truncate">
-                {p.display_name || p.email || p.user_id.slice(0, 8)}
-                {p.role === 'owner' ? ' · owner' : ''}
-              </li>
-            ))}
-          </ul>
+      {lane ? (
+        <div className="px-6 pb-4">
+          <LaneAgentStrip
+            lane={lane}
+            isOwner={!!isOwner}
+            turnRunning={turnRunning}
+          />
         </div>
-      </aside>
+      ) : null}
+
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 px-6 pb-6 lg:grid-cols-[minmax(320px,420px)_minmax(0,1fr)]">
+        <LaneConversationPanel
+          turnRunning={turnRunning}
+          canInterrupt={
+            !!wsReady && wsReady.readyState === WebSocket.OPEN
+          }
+          onInterrupt={() => {
+            // Keep turnRunning until the hub status frame confirms idle.
+            wsReady?.send(JSON.stringify({ type: 'interrupt' }))
+          }}
+        />
+        <LanePreviewPanel />
+      </div>
 
       <Dialog
         open={destroyDialogOpen}
@@ -551,164 +257,14 @@ function LaneChatPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog
+      <LaneMembersDialog
+        laneId={laneId}
         open={membersOpen}
+        currentUser={me.user}
         onOpenChange={(open) => {
           if (!open) closeMembersPanel()
         }}
-      >
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Members</DialogTitle>
-            <DialogDescription>
-              Add Organization members immediately, or share an open Lane Invite
-              link.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-6">
-            <div className="space-y-2">
-              <h3 className="text-sm font-medium">Participants</h3>
-              <ul className="space-y-2 text-sm">
-                {participants.map((p) => (
-                  <li
-                    key={p.id}
-                    className="flex items-center justify-between gap-2"
-                  >
-                    <span className="min-w-0 truncate">
-                      {p.display_name || p.email || p.user_id.slice(0, 8)}
-                      {p.role === 'owner' ? ' · owner' : ''}
-                    </span>
-                    {p.role !== 'owner' && p.user_id !== me.user.id ? (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        disabled={removeMutation.isPending}
-                        onClick={() => removeMutation.mutate(p.user_id)}
-                      >
-                        Remove
-                      </Button>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Add Organization member</Label>
-              <Combobox
-                items={addableMembers}
-                value={addMember}
-                onValueChange={setAddMember}
-                itemToStringLabel={(m) => `${m.display_name} (${m.email})`}
-                itemToStringValue={(m) => m.id}
-                isItemEqualToValue={(a, b) => a.id === b.id}
-              >
-                <ComboboxInput
-                  placeholder="Select a member"
-                  className="w-full"
-                />
-                <ComboboxContent>
-                  <ComboboxEmpty>No members to add</ComboboxEmpty>
-                  <ComboboxList>
-                    {(m) => (
-                      <ComboboxItem key={m.id} value={m}>
-                        {m.display_name} ({m.email})
-                      </ComboboxItem>
-                    )}
-                  </ComboboxList>
-                </ComboboxContent>
-              </Combobox>
-              <Button
-                type="button"
-                size="sm"
-                disabled={!addMember || addMutation.isPending}
-                onClick={() => {
-                  if (!addMember) return
-                  addMutation.mutate(addMember.id)
-                }}
-              >
-                {addMutation.isPending ? 'Adding…' : 'Add participant'}
-              </Button>
-            </div>
-
-            <div className="space-y-2">
-              <h3 className="text-sm font-medium">Lane Invite link</h3>
-              {activeInvite ? (
-                <div className="space-y-2">
-                  <Input readOnly value={activeInvite.accept_url} />
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() =>
-                        void navigator.clipboard.writeText(
-                          activeInvite.accept_url,
-                        )
-                      }
-                    >
-                      Copy URL
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      disabled={regenerateInviteMutation.isPending}
-                      onClick={() => {
-                        if (
-                          !window.confirm(
-                            'Regenerate the invite link? The old link stops working.',
-                          )
-                        ) {
-                          return
-                        }
-                        regenerateInviteMutation.mutate()
-                      }}
-                    >
-                      Regenerate
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      disabled={revokeInviteMutation.isPending}
-                      onClick={() => revokeInviteMutation.mutate()}
-                    >
-                      Revoke
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <Button
-                  type="button"
-                  size="sm"
-                  disabled={
-                    ensureInviteMutation.isPending ||
-                    activeInviteQuery.isLoading
-                  }
-                  onClick={() => ensureInviteMutation.mutate()}
-                >
-                  {ensureInviteMutation.isPending
-                    ? 'Creating…'
-                    : 'Create invite link'}
-                </Button>
-              )}
-            </div>
-
-            {membersError ? (
-              <p className="text-destructive text-sm">{membersError}</p>
-            ) : null}
-          </div>
-
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={closeMembersPanel}>
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      />
     </div>
   )
 }

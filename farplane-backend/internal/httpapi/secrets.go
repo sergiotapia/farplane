@@ -120,6 +120,39 @@ func (a *api) handleListLaneAgents(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"agents": agents.Availability(set)})
 }
 
+func (a *api) handleListLaneAgentModels(c *gin.Context) {
+	principal, ok := a.requirePrincipal(c)
+	if !ok {
+		return
+	}
+	provider := strings.TrimSpace(c.Param("provider"))
+	if !agents.IsKnownProvider(provider) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid agent_provider"})
+		return
+	}
+	source := strings.TrimSpace(c.Query("source"))
+	if source == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "source query parameter is required"})
+		return
+	}
+	setSecrets, err := a.store.SetSecretsMap(c.Request.Context(), principal.Organization.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load secrets"})
+		return
+	}
+	if !agents.SourceAllowedForAgent(provider, source, setSecrets) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "model_source not available for this agent"})
+		return
+	}
+	catalog := a.agentCatalog()
+	list, err := catalog.ModelsFor(c.Request.Context(), provider, source)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "failed to load models for agent"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"models": list})
+}
+
 func isWellKnownSecret(name string) bool {
 	for _, n := range agents.WellKnownSecretNames {
 		if n == name {

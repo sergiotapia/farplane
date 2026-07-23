@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/farplane/farplane/farplane-backend/internal/agents"
 	"github.com/farplane/farplane/farplane-backend/internal/auth"
 	"github.com/farplane/farplane/farplane-backend/internal/config"
 	"github.com/farplane/farplane/farplane-backend/internal/githubapp"
@@ -30,6 +31,7 @@ type api struct {
 	github  GitHubApp
 	runtime runtime.Runtime
 	hub     *lanehub.Hub
+	catalog *agents.ModelCatalog
 
 	githubMu     sync.RWMutex
 	githubForced bool // true when WithGitHubApp injected a test client
@@ -39,9 +41,22 @@ type api struct {
 }
 
 func newAPI(cfg config.Config, st *store.Store, rt runtime.Runtime, hub *lanehub.Hub) *api {
-	a := &api{cfg: cfg, store: st, runtime: rt, hub: hub}
+	a := &api{
+		cfg:     cfg,
+		store:   st,
+		runtime: rt,
+		hub:     hub,
+		catalog: agents.DefaultModelCatalog(),
+	}
 	a.github = a.loadGitHubAppLocked()
 	return a
+}
+
+func (a *api) agentCatalog() *agents.ModelCatalog {
+	if a.catalog != nil {
+		return a.catalog
+	}
+	return agents.DefaultModelCatalog()
 }
 
 func (a *api) githubApp() GitHubApp {
