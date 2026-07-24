@@ -88,15 +88,39 @@ func MigrateDown(databaseURL string) error {
 	})
 }
 
-// MigrateReset rolls back all migrations.
+// MigrateReset clears the public schema so the next MigrateUp applies a clean
+// history. Local databases may be dropped and recreated at any time; rolling
+// back each Down migration is brittle when a prior run left a half-applied
+// schema (common under concurrent package tests).
 func MigrateReset(databaseURL string) error {
-	return withProvider(databaseURL, func(ctx context.Context, p *goose.Provider) error {
-		if _, err := p.DownTo(ctx, 0); err != nil {
-			return fmt.Errorf("migrate reset: %w", err)
-		}
+	if err := recreatePublicSchema(databaseURL); err != nil {
+		return fmt.Errorf("migrate reset: %w", err)
+	}
 
-		return nil
-	})
+	return nil
+}
+
+func recreatePublicSchema(databaseURL string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultMigrateTimeout)
+	defer cancel()
+
+	sqlDB, err := openSQL(ctx, databaseURL)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = sqlDB.Close() }()
+
+	_, err = sqlDB.ExecContext(ctx, `
+		DROP SCHEMA public CASCADE;
+		CREATE SCHEMA public;
+		GRANT ALL ON SCHEMA public TO CURRENT_USER;
+		GRANT ALL ON SCHEMA public TO public;
+	`)
+	if err != nil {
+		return fmt.Errorf("recreate public schema: %w", err)
+	}
+
+	return nil
 }
 
 // MigrateStatus prints migration status.

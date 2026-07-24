@@ -111,16 +111,24 @@ if [[ "$RC" -eq 0 ]]; then
   exit 0
 fi
 
-# Truncate log for the follow-up prompt.
+# Prefer FAIL / error lines so Gin route dumps do not hide the real failure.
 BODY="$(python3 -c '
-import pathlib, sys
+import pathlib, re, sys
 path = pathlib.Path(sys.argv[1])
 text = path.read_text(errors="replace") if path.exists() else ""
 max_chars = int(sys.argv[2])
-if len(text) > max_chars:
-    text = text[-max_chars:]
-    text = "[... truncated ...]\n" + text
-print(text, end="")
+lines = text.splitlines()
+interesting = [
+    ln for ln in lines
+    if re.search(r"(?i)(--- FAIL|FAIL\t|Error:|panic:|migrate |FAIL\s*$|make: \*\*\*)", ln)
+]
+if interesting:
+    body = "\n".join(interesting[-200:])
+else:
+    body = text
+if len(body) > max_chars:
+    body = "[... truncated ...]\n" + body[-max_chars:]
+print(body, end="")
 ' "$LOG_FILE" "$MAX_LOG_CHARS")"
 
 emit_followup "$BODY"

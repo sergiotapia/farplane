@@ -99,7 +99,7 @@ func TestScratchEnvironmentGetUpsertValidate(t *testing.T) {
 }
 
 func TestProjectEnvironmentGenerateAndLaneCreate(t *testing.T) {
-	pool := openMigratedTestDB(t, true)
+	pool := openMigratedTestDB(t)
 	st := store.New(pool)
 	rt := &fakeRuntime{}
 	base := "FROM debian:bookworm-slim\nWORKDIR /workspace\nCOPY bridge /opt/farplane/bridge\nEXPOSE 7420\nENTRYPOINT [\"node\", \"/opt/farplane/bridge/bridge.js\"]\n"

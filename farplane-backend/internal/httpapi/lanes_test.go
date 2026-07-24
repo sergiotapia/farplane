@@ -109,7 +109,7 @@ func setupLaneTest(t *testing.T) (
 	*pgxpool.Pool,
 ) {
 	t.Helper()
-	pool := openMigratedTestDB(t, true)
+	pool := openMigratedTestDB(t)
 	st := store.New(pool)
 	rt := &fakeRuntime{}
 	engine := httpapi.New(pool, testConfig(), httpapi.WithRuntime(rt))

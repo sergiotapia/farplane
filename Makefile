@@ -113,7 +113,7 @@ endif
 test: test-backend
 
 ## test-backend: Run Go tests with race, shuffle, and coverage profile
-## (features/ is separate — it resets farplane_test and must not race httpapi tests)
+## DB tests clone farplane_test_template per case (see internal/db/testdb.go).
 test-backend:
 	cd $(BACKEND) && $(GO) test $(BACKEND_PKGS) \
 		-race -shuffle=on -count=1 \
@@ -153,8 +153,7 @@ gitleaks:
 	gitleaks detect --source $(ROOT) --config $(ROOT)/.gitleaks.toml --verbose
 
 ## gomutants: Mutation test lines changed since CHANGED_SINCE
-## Scoped to unit packages — DB integration packages race on farplane_test under
-## gomutants' coverage collection. Expand GOMUTANTS_PKGS when DB tests are isolated.
+## Scoped to unit packages — expand when mutation coverage on DB packages is useful.
 GOMUTANTS_PKGS ?= \
 	github.com/farplane/farplane/farplane-backend/internal/secretbox \
 	github.com/farplane/farplane/farplane-backend/internal/dockerlint \

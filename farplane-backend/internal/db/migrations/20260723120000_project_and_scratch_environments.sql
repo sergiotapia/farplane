@@ -102,8 +102,15 @@ CREATE TABLE lane_templates (
     CONSTRAINT lane_templates_organization_name_uidx UNIQUE (organization_id, name)
 );
 
-ALTER TABLE lanes
-    ADD COLUMN lane_template_id UUID REFERENCES lane_templates (id) ON DELETE SET NULL;
+-- lanes may be missing when the DB was left half-migrated by a crashed/racy test.
+DO $$
+BEGIN
+    IF to_regclass('public.lanes') IS NOT NULL THEN
+        ALTER TABLE lanes
+            ADD COLUMN IF NOT EXISTS lane_template_id UUID
+                REFERENCES lane_templates (id) ON DELETE SET NULL;
+    END IF;
+END $$;
 
 DROP TABLE IF EXISTS project_environments;
 DROP TABLE IF EXISTS scratch_environments;

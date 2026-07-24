@@ -11,7 +11,7 @@ import (
 )
 
 func TestLoginLogoutRoundTrip(t *testing.T) {
-	pool := openMigratedTestDB(t, true)
+	pool := openMigratedTestDB(t)
 	engine := httpapi.New(pool, testConfig())
 
 	setupRec := postSetup(engine, map[string]string{
@@ -106,7 +106,7 @@ func TestLoginLogoutRoundTrip(t *testing.T) {
 }
 
 func TestGoogleLoginRedirectsToSetupWhenNeeded(t *testing.T) {
-	pool := openMigratedTestDB(t, true)
+	pool := openMigratedTestDB(t)
 	cfg := testConfig()
 	cfg.GoogleClientID = "test-client-id"
 	cfg.GoogleClientSecret = "test-client-secret"

@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -28,20 +27,13 @@ import (
 type apiWorld struct {
 	t              *testing.T
 	pool           *pgxpool.Pool
+	poolCleanup    func()
 	engine         http.Handler
 	cfg            config.Config
 	sessionCookie  *http.Cookie
 	lastRec        *httptest.ResponseRecorder
 	manifestState  string
 	manifestActive bool
-}
-
-func testDatabaseURL() string {
-	if url := os.Getenv("TEST_DATABASE_URL"); url != "" {
-		return url
-	}
-
-	return "postgres://postgres:postgres@127.0.0.1:5432/farplane_test?sslmode=disable"
 }
 
 func defaultConfig() config.Config {
@@ -54,31 +46,6 @@ func defaultConfig() config.Config {
 		SessionCookieSecure:  false,
 		SessionTTL:           24 * time.Hour,
 	}
-}
-
-func openMigratedTestDB(t *testing.T) *pgxpool.Pool {
-	t.Helper()
-
-	url := testDatabaseURL()
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	t.Cleanup(cancel)
-
-	pool, err := db.Open(ctx, url)
-	if err != nil {
-		t.Skipf("test database unavailable: %v", err)
-	}
-
-	t.Cleanup(func() { pool.Close() })
-
-	if err := db.MigrateReset(url); err != nil {
-		t.Fatalf("MigrateReset: %v", err)
-	}
-
-	if err := db.MigrateUp(url); err != nil {
-		t.Fatalf("MigrateUp: %v", err)
-	}
-
-	return pool
 }
 
 func testRSAPrivateKeyPEM(t *testing.T) string {
@@ -95,7 +62,15 @@ func testRSAPrivateKeyPEM(t *testing.T) string {
 }
 
 func (w *apiWorld) resetCleanAPI() error {
-	w.pool = openMigratedTestDB(w.t)
+	if w.poolCleanup != nil {
+		w.poolCleanup()
+		w.poolCleanup = nil
+		w.pool = nil
+	}
+
+	pool, cleanup := db.PrepareIsolated(w.t)
+	w.pool = pool
+	w.poolCleanup = cleanup
 	w.cfg = defaultConfig()
 	w.engine = httpapi.New(w.pool, w.cfg)
 	w.sessionCookie = nil

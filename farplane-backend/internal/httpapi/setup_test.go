@@ -2,15 +2,12 @@ package httpapi_test
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strconv"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -18,40 +15,11 @@ import (
 	"github.com/farplane/farplane/farplane-backend/internal/httpapi"
 )
 
-func testDatabaseURL() string {
-	url := os.Getenv("TEST_DATABASE_URL")
-	if url == "" {
-		return "postgres://postgres:postgres@127.0.0.1:5432/farplane_test?sslmode=disable"
-	}
-
-	return url
-}
-
-func openMigratedTestDB(t *testing.T, reset bool) *pgxpool.Pool {
+// openMigratedTestDB returns a pool to a fresh migrated database (template clone).
+func openMigratedTestDB(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 
-	url := testDatabaseURL()
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	t.Cleanup(cancel)
-
-	pool, err := db.Open(ctx, url)
-	if err != nil {
-		t.Skipf("test database unavailable: %v", err)
-	}
-
-	t.Cleanup(func() { pool.Close() })
-
-	if reset {
-		if err := db.MigrateReset(url); err != nil {
-			t.Fatalf("MigrateReset: %v", err)
-		}
-	}
-
-	if err := db.MigrateUp(url); err != nil {
-		t.Fatalf("MigrateUp: %v", err)
-	}
-
-	return pool
+	return db.OpenIsolated(t)
 }
 
 func postSetup(engine http.Handler, body map[string]string) *httptest.ResponseRecorder {
@@ -66,7 +34,7 @@ func postSetup(engine http.Handler, body map[string]string) *httptest.ResponseRe
 }
 
 func TestSetupStatusWhenEmptyAndGoogleStartWithoutCreds(t *testing.T) {
-	pool := openMigratedTestDB(t, true)
+	pool := openMigratedTestDB(t)
 	engine := httpapi.New(pool, testConfig())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/setup/status", nil)
@@ -104,7 +72,7 @@ func TestSetupStatusWhenEmptyAndGoogleStartWithoutCreds(t *testing.T) {
 }
 
 func TestSetupStatusReportsGoogleOAuthConfiguredFromConfig(t *testing.T) {
-	pool := openMigratedTestDB(t, true)
+	pool := openMigratedTestDB(t)
 
 	cfg := testConfig()
 	cfg.GoogleClientID = "test-client-id"
@@ -134,7 +102,7 @@ func TestSetupStatusReportsGoogleOAuthConfiguredFromConfig(t *testing.T) {
 }
 
 func TestPasswordSetupCreatesOwnerMembershipAndSecondFails(t *testing.T) {
-	pool := openMigratedTestDB(t, true)
+	pool := openMigratedTestDB(t)
 	engine := httpapi.New(pool, testConfig())
 
 	body := map[string]string{
@@ -237,7 +205,7 @@ func TestPasswordSetupCreatesOwnerMembershipAndSecondFails(t *testing.T) {
 }
 
 func TestConcurrentPasswordSetupOnlyOneSucceeds(t *testing.T) {
-	pool := openMigratedTestDB(t, true)
+	pool := openMigratedTestDB(t)
 	engine := httpapi.New(pool, testConfig())
 
 	const workers = 8

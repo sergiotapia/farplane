@@ -66,7 +66,7 @@ func setupAuthedEngine(
 	gh httpapi.GitHubApp,
 ) (http.Handler, *http.Cookie, *store.Store, *pgxpool.Pool) {
 	t.Helper()
-	pool := openMigratedTestDB(t, true)
+	pool := openMigratedTestDB(t)
 	st := store.New(pool)
 	engine := httpapi.New(pool, testConfig(), httpapi.WithGitHubApp(gh))
 

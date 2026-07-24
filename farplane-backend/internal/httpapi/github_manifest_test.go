@@ -31,7 +31,7 @@ func testRSAPrivateKeyPEM(t *testing.T) string {
 }
 
 func TestGitHubManifestStartAndCallback(t *testing.T) {
-	pool := openMigratedTestDB(t, true)
+	pool := openMigratedTestDB(t)
 	pemKey := testRSAPrivateKeyPEM(t)
 
 	cfg := testConfig()
@@ -204,7 +204,7 @@ func TestGitHubManifestStartAndCallback(t *testing.T) {
 }
 
 func TestGitHubManifestStartRejectsNonPublicAPIBaseURL(t *testing.T) {
-	pool := openMigratedTestDB(t, true)
+	pool := openMigratedTestDB(t)
 	engine := httpapi.New(pool, testConfig()) // AppAPIBaseURL defaults to http://localhost:8080
 
 	setupRec := postSetup(engine, map[string]string{

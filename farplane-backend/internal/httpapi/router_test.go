@@ -1,16 +1,13 @@
 package httpapi_test
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 	"time"
 
 	"github.com/farplane/farplane/farplane-backend/internal/config"
-	"github.com/farplane/farplane/farplane-backend/internal/db"
 	"github.com/farplane/farplane/farplane-backend/internal/httpapi"
 )
 
@@ -73,23 +70,7 @@ func TestReadyWithoutPool(t *testing.T) {
 }
 
 func TestReadyWithPool(t *testing.T) {
-	url := os.Getenv("TEST_DATABASE_URL")
-	if url == "" {
-		url = "postgres://postgres:postgres@127.0.0.1:5432/farplane_test?sslmode=disable"
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	pool, err := db.Open(ctx, url)
-	if err != nil {
-		t.Skipf("test database unavailable: %v", err)
-	}
-	defer pool.Close()
-
-	if err := db.MigrateUp(url); err != nil {
-		t.Fatalf("MigrateUp: %v", err)
-	}
+	pool := openMigratedTestDB(t)
 
 	req := httptest.NewRequest(http.MethodGet, "/ready", nil)
 	rec := httptest.NewRecorder()
