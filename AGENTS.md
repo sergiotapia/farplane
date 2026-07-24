@@ -101,6 +101,11 @@ mutation tests, godog acceptance, and Playwright e2e. Thresholds are
 strict (fail loud). Patch coverage and mutation tooling use
 `GIT_BASE` / `CHANGED_SINCE` (default: `master`).
 
+GitHub Actions runs the same `make gauntlet` on every push to `master`
+and on every pull request (`.github/workflows/gauntlet.yml`). On PRs,
+patch gates diff against the base branch; on `master` pushes, they
+diff against the previous commit.
+
 Prereqs:
 
 1. Postgres + migrations: `make db-create`, `make migrate-up`,

@@ -1,0 +1,126 @@
+name: Gauntlet
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+concurrency:
+  group: gauntlet-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  APP_ENV: local
+  DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/farplane_dev?sslmode=disable
+  TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/farplane_test?sslmode=disable
+  PGPASSWORD: postgres
+  SESSION_SECRET: farplane-ci-session-secret
+  APP_BASE_URL: http://localhost:3000
+  APP_API_BASE_URL: http://localhost:8080
+  CI: true
+
+jobs:
+  gauntlet:
+    name: make gauntlet
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Resolve patch base for cover and mutation
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git fetch --no-tags --depth=1 origin "${{ github.base_ref }}"
+            echo "GIT_BASE=origin/${{ github.base_ref }}" >> "$GITHUB_ENV"
+            echo "CHANGED_SINCE=origin/${{ github.base_ref }}" >> "$GITHUB_ENV"
+          elif [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
+            echo "GIT_BASE=${{ github.event.before }}" >> "$GITHUB_ENV"
+            echo "CHANGED_SINCE=${{ github.event.before }}" >> "$GITHUB_ENV"
+          else
+            # First push on a new branch: no parent to diff against.
+            echo "GIT_BASE=HEAD" >> "$GITHUB_ENV"
+            echo "CHANGED_SINCE=HEAD" >> "$GITHUB_ENV"
+          fi
+
+      - name: Install mise tools
+        uses: jdx/mise-action@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Install web dependencies
+        run: bun install --frozen-lockfile
+        working-directory: farplane-web
+
+      - name: Install Playwright Chromium
+        run: bunx playwright install --with-deps chromium
+        working-directory: farplane-web
+
+      - name: Create databases and migrate
+        run: |
+          make db-create
+          make migrate-up
+          make migrate-up-test
+
+      - name: Start API
+        run: |
+          set -euo pipefail
+          make backend > /tmp/farplane-api.log 2>&1 &
+          echo $! > /tmp/farplane-api.pid
+          for _ in $(seq 1 60); do
+            if curl -sf http://127.0.0.1:8080/ready >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "API failed to become ready" >&2
+          cat /tmp/farplane-api.log >&2 || true
+          exit 1
+
+      - name: Run gauntlet
+        run: make gauntlet
+
+      - name: Fail if formatters rewrote tracked files
+        run: git diff --exit-code
+
+      - name: Upload API log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: farplane-api-log
+          path: /tmp/farplane-api.log
+          if-no-files-found: ignore
+
+      - name: Upload Playwright artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-artifacts
+          path: |
+            farplane-web/playwright-report
+            farplane-web/test-results
+          if-no-files-found: ignore
