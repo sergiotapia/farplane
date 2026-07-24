@@ -42,10 +42,19 @@ dist/
 # Coverage
 *.out
 coverage.out
+coverage.changed.out
 coverage.html
 coverage.txt
 *.coverprofile
 profile.cov
+
+# Mutation testing (gomutants, Stryker)
+.gomutants-cache.json
+mutation-report.json
+mutation-report/
+.stryker-tmp/
+stryker.log
+reports/mutation/
 
 # Dependency / workspace
 vendor/
