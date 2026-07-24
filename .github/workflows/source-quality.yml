@@ -1,4 +1,4 @@
-name: Gauntlet
+name: Source Quality
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
   pull_request:
 
 concurrency:
-  group: gauntlet-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: source-quality-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -23,10 +23,10 @@ env:
   CI: true
 
 jobs:
-  gauntlet:
-    name: make gauntlet
+  backend:
+    name: backend
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 45
 
     services:
       postgres:
@@ -59,7 +59,63 @@ jobs:
             echo "GIT_BASE=${{ github.event.before }}" >> "$GITHUB_ENV"
             echo "CHANGED_SINCE=${{ github.event.before }}" >> "$GITHUB_ENV"
           else
-            # First push on a new branch: no parent to diff against.
+            echo "GIT_BASE=HEAD" >> "$GITHUB_ENV"
+            echo "CHANGED_SINCE=HEAD" >> "$GITHUB_ENV"
+          fi
+
+      - name: Install mise tools
+        uses: jdx/mise-action@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Create databases
+        run: make db-create
+
+      - name: Run backend gauntlet
+        run: make gauntlet-backend
+
+      - name: Fail if formatters rewrote tracked files
+        run: git diff --exit-code
+
+  web:
+    name: web
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Resolve patch base for mutation
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git fetch --no-tags --depth=1 origin "${{ github.base_ref }}"
+            echo "GIT_BASE=origin/${{ github.base_ref }}" >> "$GITHUB_ENV"
+            echo "CHANGED_SINCE=origin/${{ github.base_ref }}" >> "$GITHUB_ENV"
+          elif [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
+            echo "GIT_BASE=${{ github.event.before }}" >> "$GITHUB_ENV"
+            echo "CHANGED_SINCE=${{ github.event.before }}" >> "$GITHUB_ENV"
+          else
             echo "GIT_BASE=HEAD" >> "$GITHUB_ENV"
             echo "CHANGED_SINCE=HEAD" >> "$GITHUB_ENV"
           fi
@@ -84,13 +140,11 @@ jobs:
         run: |
           make db-create
           make migrate-up
-          make migrate-up-test
 
       - name: Start API
         run: |
           set -euo pipefail
           make backend > /tmp/farplane-api.log 2>&1 &
-          echo $! > /tmp/farplane-api.pid
           for _ in $(seq 1 60); do
             if curl -sf http://127.0.0.1:8080/ready >/dev/null; then
               exit 0
@@ -101,8 +155,8 @@ jobs:
           cat /tmp/farplane-api.log >&2 || true
           exit 1
 
-      - name: Run gauntlet
-        run: make gauntlet
+      - name: Run web gauntlet
+        run: make gauntlet-web
 
       - name: Fail if formatters rewrote tracked files
         run: git diff --exit-code

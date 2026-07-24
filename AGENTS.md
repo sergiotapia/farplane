@@ -101,8 +101,10 @@ mutation tests, godog acceptance, and Playwright e2e. Thresholds are
 strict (fail loud). Patch coverage and mutation tooling use
 `GIT_BASE` / `CHANGED_SINCE` (default: `master`).
 
-GitHub Actions runs the same `make gauntlet` on every push to `master`
-and on every pull request (`.github/workflows/gauntlet.yml`). On PRs,
+GitHub Actions runs backend and web gauntlets in parallel on every push
+to `master` and on every pull request (workflow **Source Quality** →
+jobs **backend** / **web**). Locally the Cursor stop hook still runs
+full `make gauntlet` (`gauntlet-backend` + `gauntlet-web`). On PRs,
 patch gates diff against the base branch; on `master` pushes, they
 diff against the previous commit.
 

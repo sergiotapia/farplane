@@ -37,7 +37,8 @@ BACKEND_PKGS = $$($(GO) list ./... | grep -v '/features$$')
 .PHONY: test test-backend test-web test-web-e2e test-short
 .PHONY: lint lint-backend fmt cover-backend govulncheck gitleaks gomutants go-arch-lint acceptance-backend
 .PHONY: lint-web format-web typecheck-web knip-web deps-web audit-web mutate-web
-.PHONY: check gauntlet
+.PHONY: check check-backend check-web
+.PHONY: gauntlet gauntlet-backend gauntlet-web
 .PHONY: backend web install-web
 .PHONY: tidy
 
@@ -228,20 +229,36 @@ install-web:
 tidy:
 	cd $(BACKEND) && $(GO) mod tidy
 
-# check order: format → lint → types → tests → cover → security → arch.
-# Uses GIT_BASE/CHANGED_SINCE (default: master). Needs Postgres for Go tests.
-## check: Fast/medium local quality pipeline (agent Definition of Done)
-check: \
-	fmt format-web \
-	lint-backend lint-web \
-	typecheck-web \
-	cover-backend test-web \
-	govulncheck gitleaks audit-web \
-	go-arch-lint knip-web deps-web
+# check / gauntlet split into backend + web so CI can run them in parallel.
+# Local Cursor stop hook still runs full `make gauntlet`.
+# Uses GIT_BASE/CHANGED_SINCE (default: master). Backend needs Postgres.
+# Web e2e needs API on :8080 and Chromium (see farplane-web/QUALITY.md).
 
-# gauntlet = check + mutation + acceptance + e2e.
-# Extra prereqs: Postgres + migrate-up-test; API on :8080 (make backend);
-# optional E2E_EMAIL / E2E_PASSWORD; once: bunx playwright install chromium.
-# Mutation uses CHANGED_SINCE (default: GIT_BASE/master). See AGENTS.md.
-## gauntlet: Full local pipeline (check + mutation + acceptance + e2e)
-gauntlet: check gomutants mutate-web acceptance-backend test-web-e2e
+## check-backend: Format, lint, test/cover, security, and arch for Go
+check-backend: \
+	fmt \
+	lint-backend \
+	cover-backend \
+	govulncheck gitleaks \
+	go-arch-lint
+
+## check-web: Format, lint, types, unit tests, audit, and import graph for SPA
+check-web: \
+	format-web \
+	lint-web \
+	typecheck-web \
+	test-web \
+	audit-web \
+	knip-web deps-web
+
+## check: Fast/medium local quality pipeline (backend + web)
+check: check-backend check-web
+
+## gauntlet-backend: check-backend + Go mutation + godog acceptance
+gauntlet-backend: check-backend gomutants acceptance-backend
+
+## gauntlet-web: check-web + Stryker + Playwright e2e
+gauntlet-web: check-web mutate-web test-web-e2e
+
+## gauntlet: Full local pipeline (backend + web). Agent Definition of Done.
+gauntlet: gauntlet-backend gauntlet-web
