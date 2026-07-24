@@ -10,7 +10,11 @@ When('I open GitHub settings', async ({ page }) => {
 })
 
 Then('I see the GitHub settings heading', async ({ page }) => {
-  await expect(page.getByRole('heading', { name: 'GitHub' })).toBeVisible()
+  // exact: string name is a substring match by default and also hits the h2
+  // "Create the Farplane AI GitHub App".
+  await expect(
+    page.getByRole('heading', { name: 'GitHub', exact: true }),
+  ).toBeVisible()
 })
 
 Then(

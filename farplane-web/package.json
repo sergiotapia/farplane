@@ -16,7 +16,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
+    "test:coverage": "mkdir -p coverage && flock -w 900 coverage/.run.lock vitest run --coverage",
     "test:e2e": "bddgen && playwright test",
     "bddgen": "bddgen",
     "knip": "knip",

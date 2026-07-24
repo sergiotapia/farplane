@@ -8,6 +8,7 @@
   ],
   "project": ["src/**/*.{ts,tsx}", "e2e/**/*.{ts,tsx}"],
   "ignoreDependencies": ["tailwindcss", "tw-animate-css", "shadcn"],
+  "ignoreBinaries": ["flock"],
   "ignoreIssues": {
     "src/components/ui/**": [
       "exports",

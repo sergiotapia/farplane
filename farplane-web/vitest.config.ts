@@ -4,6 +4,12 @@ import { defineConfig } from 'vitest/config'
 
 const root = path.dirname(fileURLToPath(import.meta.url))
 
+// Concurrent vitest --coverage processes delete each other's coverage/.tmp
+// (ENOENT lstat). Stryker runs multiple Vitests; keep those reports isolated.
+const coverageDirectory = process.env.STRYKER_MUTATOR
+  ? path.join(root, '.stryker-tmp', `coverage-${process.pid}`)
+  : path.join(root, 'coverage')
+
 export default defineConfig({
   resolve: {
     alias: {
@@ -24,6 +30,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
+      reportsDirectory: coverageDirectory,
       // Vitest 4: scope via include (coverage.all was removed).
       include: ['src/lib/**/*.ts'],
       exclude: ['src/lib/api.ts', 'src/lib/**/*.test.ts', 'src/test/**'],
