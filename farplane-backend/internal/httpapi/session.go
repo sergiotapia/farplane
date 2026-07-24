@@ -56,6 +56,7 @@ func newAPI(cfg config.Config, st *store.Store, rt runtime.Runtime, hub *lanehub
 		catalog: agents.DefaultModelCatalog(),
 	}
 	a.github = a.loadGitHubAppLocked()
+
 	return a
 }
 
@@ -63,21 +64,25 @@ func (a *api) agentCatalog() *agents.ModelCatalog {
 	if a.catalog != nil {
 		return a.catalog
 	}
+
 	return agents.DefaultModelCatalog()
 }
 
 func (a *api) githubApp() GitHubApp {
 	a.githubMu.RLock()
 	defer a.githubMu.RUnlock()
+
 	return a.github
 }
 
 func (a *api) setGitHubApp(client GitHubApp) {
 	a.githubMu.Lock()
 	defer a.githubMu.Unlock()
+
 	if a.githubForced {
 		return
 	}
+
 	a.github = client
 }
 
@@ -93,15 +98,19 @@ func (a *api) loadGitHubAppLocked() GitHubApp {
 			return client
 		}
 	}
+
 	if a.store == nil {
 		return nil
 	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+
 	creds, err := a.store.GetGitHubAppCredentials(ctx, a.cfg.SessionSecret)
 	if err != nil {
 		return nil
 	}
+
 	client, err := githubapp.New(githubapp.Config{
 		AppID:         creds.GitHubAppID,
 		Slug:          creds.GitHubAppSlug,
@@ -111,6 +120,7 @@ func (a *api) loadGitHubAppLocked() GitHubApp {
 	if err != nil {
 		return nil
 	}
+
 	return client
 }
 
@@ -164,10 +174,8 @@ func meFromSetup(result store.SetupPasswordResult) meResponse {
 }
 
 func (a *api) setSessionCookie(c *gin.Context, token string, expiresAt time.Time) {
-	maxAge := int(time.Until(expiresAt).Seconds())
-	if maxAge < 0 {
-		maxAge = 0
-	}
+	maxAge := max(int(time.Until(expiresAt).Seconds()), 0)
+
 	c.SetSameSite(http.SameSiteLaxMode)
 	c.SetCookie(sessionCookieName, token, maxAge, "/", "", a.cfg.SessionCookieSecure, true)
 }
@@ -182,10 +190,12 @@ func (a *api) createSessionForUser(c *gin.Context, userID string) (string, time.
 	if err != nil {
 		return "", time.Time{}, err
 	}
+
 	expiresAt := time.Now().UTC().Add(a.cfg.SessionTTL)
 	if _, err := a.store.CreateSession(c.Request.Context(), token, userID, expiresAt); err != nil {
 		return "", time.Time{}, err
 	}
+
 	return token, expiresAt, nil
 }
 
@@ -196,20 +206,25 @@ func (a *api) sessionOptional() gin.HandlerFunc {
 			c.Next()
 			return
 		}
+
 		token, err := c.Cookie(sessionCookieName)
 		if err != nil || token == "" {
 			c.Next()
 			return
 		}
+
 		userID, err := a.store.GetValidSessionUserID(c.Request.Context(), token, time.Now().UTC())
 		if err != nil {
 			if !errors.Is(err, store.ErrNotFound) {
-				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "session lookup failed"})
+				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{jsonKeyError: "session lookup failed"})
 				return
 			}
+
 			c.Next()
+
 			return
 		}
+
 		c.Set(contextUserIDKey, userID)
 		c.Next()
 	}
@@ -219,9 +234,10 @@ func (a *api) sessionOptional() gin.HandlerFunc {
 func (a *api) requireSession() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if _, ok := c.Get(contextUserIDKey); !ok {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "authentication required"})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{jsonKeyError: errAuthRequired})
 			return
 		}
+
 		c.Next()
 	}
 }
@@ -231,22 +247,24 @@ func currentUserID(c *gin.Context) (string, bool) {
 	if !ok {
 		return "", false
 	}
+
 	id, ok := v.(string)
+
 	return id, ok && id != ""
 }
 
 func writeStoreError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, store.ErrAlreadySetup):
-		c.JSON(http.StatusConflict, gin.H{"error": "setup already completed"})
+		c.JSON(http.StatusConflict, gin.H{jsonKeyError: "setup already completed"})
 	case errors.Is(err, store.ErrConflict):
-		c.JSON(http.StatusConflict, gin.H{"error": "conflict"})
+		c.JSON(http.StatusConflict, gin.H{jsonKeyError: "conflict"})
 	case errors.Is(err, store.ErrForbidden):
-		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		c.JSON(http.StatusForbidden, gin.H{jsonKeyError: "forbidden"})
 	case errors.Is(err, store.ErrNotFound):
-		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		c.JSON(http.StatusNotFound, gin.H{jsonKeyError: errNotFound})
 	default:
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		c.JSON(http.StatusInternalServerError, gin.H{jsonKeyError: "internal error"})
 	}
 }
 

@@ -14,22 +14,27 @@ import (
 func (a *api) handleMe(c *gin.Context) {
 	userID, ok := currentUserID(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "authentication required"})
+		c.JSON(http.StatusUnauthorized, gin.H{jsonKeyError: errAuthRequired})
 		return
 	}
+
 	if a.store == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "database unavailable"})
+		c.JSON(http.StatusServiceUnavailable, gin.H{jsonKeyError: errDatabaseUnavailable})
 		return
 	}
+
 	principal, err := a.store.GetUserWithOrgByUserID(c.Request.Context(), userID)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "authentication required"})
+			c.JSON(http.StatusUnauthorized, gin.H{jsonKeyError: errAuthRequired})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load user"})
+
+		c.JSON(http.StatusInternalServerError, gin.H{jsonKeyError: "failed to load user"})
+
 		return
 	}
+
 	c.JSON(http.StatusOK, meFromStore(principal))
 }
 
@@ -38,26 +43,29 @@ type loginRequest struct {
 	Password string `json:"password"`
 }
 
-func (a *api) handleLogin(c *gin.Context) {
+func (a *api) handleLogin(c *gin.Context) { //nolint:gocyclo // multi-branch orchestration; keep under threshold when rewriting
 	if a.store == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "database unavailable"})
+		c.JSON(http.StatusServiceUnavailable, gin.H{jsonKeyError: errDatabaseUnavailable})
 		return
 	}
 
 	var req loginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		c.JSON(http.StatusBadRequest, gin.H{jsonKeyError: errInvalidRequestBody})
 		return
 	}
 
 	email, emailOK := normalizeEmail(req.Email)
 	if !emailOK || req.Password == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "email and password are required"})
+		c.JSON(http.StatusBadRequest, gin.H{jsonKeyError: "email and password are required"})
 		return
 	}
+
 	if len(req.Password) > auth.MaxPasswordBytes {
 		_ = auth.CheckPassword(dummyPasswordHash(), req.Password)
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid email or password"})
+
+		c.JSON(http.StatusUnauthorized, gin.H{jsonKeyError: "invalid email or password"})
+
 		return
 	}
 
@@ -65,32 +73,39 @@ func (a *api) handleLogin(c *gin.Context) {
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			_ = auth.CheckPassword(dummyPasswordHash(), req.Password)
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid email or password"})
+
+			c.JSON(http.StatusUnauthorized, gin.H{jsonKeyError: "invalid email or password"})
+
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "login failed"})
+
+		c.JSON(http.StatusInternalServerError, gin.H{jsonKeyError: "login failed"})
+
 		return
 	}
+
 	hash := dummyPasswordHash()
 	if user.PasswordHash != nil {
 		hash = *user.PasswordHash
 	}
+
 	if !auth.CheckPassword(hash, req.Password) {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid email or password"})
+		c.JSON(http.StatusUnauthorized, gin.H{jsonKeyError: "invalid email or password"})
 		return
 	}
 
 	principal, err := a.store.GetUserWithOrgByUserID(c.Request.Context(), user.ID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load user"})
+		c.JSON(http.StatusInternalServerError, gin.H{jsonKeyError: "failed to load user"})
 		return
 	}
 
 	token, expiresAt, err := a.createSessionForUser(c, user.ID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create session"})
+		c.JSON(http.StatusInternalServerError, gin.H{jsonKeyError: "failed to create session"})
 		return
 	}
+
 	a.setSessionCookie(c, token, expiresAt)
 	c.JSON(http.StatusOK, meFromStore(principal))
 }
@@ -99,6 +114,7 @@ func (a *api) handleLogout(c *gin.Context) {
 	if token, err := c.Cookie(sessionCookieName); err == nil && token != "" && a.store != nil {
 		_ = a.store.DeleteSessionByToken(c.Request.Context(), token)
 	}
+
 	a.clearSessionCookie(c)
 	c.Status(http.StatusNoContent)
 }
@@ -114,7 +130,9 @@ func dummyPasswordHash() string {
 		if err != nil {
 			panic(err)
 		}
+
 		dummyHash = hash
 	})
+
 	return dummyHash
 }

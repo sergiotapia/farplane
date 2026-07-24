@@ -12,16 +12,20 @@ func normalizeEmail(raw string) (string, bool) {
 	if raw == "" {
 		return "", false
 	}
+
 	addr, err := mail.ParseAddress(raw)
 	if err != nil {
 		return "", false
 	}
+
 	if strings.TrimSpace(addr.Name) != "" {
 		return "", false
 	}
+
 	email := strings.ToLower(strings.TrimSpace(addr.Address))
 	if email == "" {
 		return "", false
 	}
+
 	return email, true
 }

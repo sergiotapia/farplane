@@ -22,13 +22,24 @@ export PGPASSWORD
 GO ?= go
 PSQL ?= psql
 
+# Backend quality-gate knobs (local only; agent-loop owns make check/gauntlet).
+COVERPROFILE ?= coverage.out
+COVERPROFILE_CHANGED ?= coverage.changed.out
+# Default base is master (this repo has no main branch).
+GIT_BASE ?= master
+CHANGED_SINCE ?= $(GIT_BASE)
+BACKEND_PKGS = $$($(GO) list ./... | grep -v '/features$$')
+
 .PHONY: help
 .PHONY: db-create db-drop db-psql db-psql-test
 .PHONY: migrate-up migrate-down migrate-reset migrate-status migrate-version migrate-create
 .PHONY: migrate-up-test migrate-reset-test
-.PHONY: test test-backend test-web test-short
+.PHONY: test test-backend test-web test-web-e2e test-short
+.PHONY: lint lint-backend fmt cover-backend govulncheck gitleaks gomutants go-arch-lint acceptance-backend
+.PHONY: lint-web format-web typecheck-web knip-web deps-web audit-web mutate-web
+.PHONY: check gauntlet
 .PHONY: backend web install-web
-.PHONY: tidy fmt
+.PHONY: tidy
 
 ## help: Show this help
 help:
@@ -101,17 +112,106 @@ endif
 ## test: Run backend tests
 test: test-backend
 
-## test-backend: Run Go tests
+## test-backend: Run Go tests with race, shuffle, and coverage profile
+## (features/ is separate — it resets farplane_test and must not race httpapi tests)
 test-backend:
-	cd $(BACKEND) && $(GO) test ./...
+	cd $(BACKEND) && $(GO) test $(BACKEND_PKGS) \
+		-race -shuffle=on -count=1 \
+		-coverprofile=$(COVERPROFILE) -covermode=atomic
 
 ## test-short: Run short Go tests only
 test-short:
-	cd $(BACKEND) && $(GO) test -short ./...
+	cd $(BACKEND) && $(GO) test -short $(BACKEND_PKGS)
 
-## test-web: Run SPA unit tests (when Vitest is wired)
+## lint: Alias for lint-backend
+lint: lint-backend
+
+## lint-backend: Run golangci-lint on the Go control plane
+lint-backend:
+	cd $(BACKEND) && golangci-lint run ./...
+
+## fmt: Format Go code with gofumpt
+fmt:
+	cd $(BACKEND) && gofumpt -extra -l -w .
+
+## cover-backend: Patch coverage vs GIT_BASE (substantive diffs; floors in .go-covercheck.yml)
+cover-backend: test-backend
+	$(BACKEND)/scripts/filter-coverprofile.sh \
+		$(BACKEND)/$(COVERPROFILE) $(GIT_BASE) $(BACKEND)/$(COVERPROFILE_CHANGED) $(ROOT)
+	@if [ "$$(wc -l < $(BACKEND)/$(COVERPROFILE_CHANGED))" -le 1 ]; then \
+		echo "cover-backend: no changed production Go files vs $(GIT_BASE); pass"; \
+	else \
+		cd $(BACKEND) && go-covercheck $(COVERPROFILE_CHANGED) -c .go-covercheck.yml; \
+	fi
+
+## govulncheck: Scan Go modules for known vulnerabilities
+govulncheck:
+	cd $(BACKEND) && govulncheck ./...
+
+## gitleaks: Scan the repo for leaked secrets
+gitleaks:
+	gitleaks detect --source $(ROOT) --config $(ROOT)/.gitleaks.toml --verbose
+
+## gomutants: Mutation test lines changed since CHANGED_SINCE
+## Scoped to unit packages — DB integration packages race on farplane_test under
+## gomutants' coverage collection. Expand GOMUTANTS_PKGS when DB tests are isolated.
+GOMUTANTS_PKGS ?= \
+	github.com/farplane/farplane/farplane-backend/internal/secretbox \
+	github.com/farplane/farplane/farplane-backend/internal/dockerlint \
+	github.com/farplane/farplane/farplane-backend/internal/envgen \
+	github.com/farplane/farplane/farplane-backend/internal/lanehub \
+	github.com/farplane/farplane/farplane-backend/internal/auth \
+	github.com/farplane/farplane/farplane-backend/internal/config \
+	github.com/farplane/farplane/farplane-backend/internal/agents \
+	github.com/farplane/farplane/farplane-backend/internal/githubapp \
+	github.com/farplane/farplane/farplane-backend/internal/lanetemplate
+gomutants:
+	cd $(BACKEND) && gomutants --config .gomutants.yml \
+		--changed-since $(CHANGED_SINCE) $(GOMUTANTS_PKGS)
+
+## go-arch-lint: Enforce internal package import boundaries
+go-arch-lint:
+	cd $(BACKEND) && go-arch-lint check
+
+## acceptance-backend: Run godog feature suite against the test API/DB
+acceptance-backend:
+	cd $(BACKEND) && $(GO) test ./features -count=1 -race
+
+## test-web: Run SPA unit tests with coverage thresholds
 test-web:
-	cd $(WEB) && bun run test
+	cd $(WEB) && bun run test:coverage
+
+## test-web-e2e: Run Playwright BDD journeys (API must be up; see farplane-web/QUALITY.md)
+test-web-e2e:
+	cd $(WEB) && bun run test:e2e
+
+## lint-web: Lint and format-check the SPA with Biome
+lint-web:
+	cd $(WEB) && bun run lint
+
+## format-web: Auto-format the SPA with Biome
+format-web:
+	cd $(WEB) && bun run format
+
+## typecheck-web: Typecheck the SPA with tsc --noEmit
+typecheck-web:
+	cd $(WEB) && bun run typecheck
+
+## knip-web: Find unused files, exports, and dependencies
+knip-web:
+	cd $(WEB) && bun run knip
+
+## deps-web: Check SPA import architecture with dependency-cruiser
+deps-web:
+	cd $(WEB) && mise exec -- bun run deps
+
+## audit-web: Audit SPA dependencies with bun audit (fails on moderate+)
+audit-web:
+	cd $(WEB) && bun run audit
+
+## mutate-web: Run StrykerJS mutation tests on SPA lib helpers
+mutate-web:
+	cd $(WEB) && bun run mutate
 
 ## backend: Run the Go control plane
 backend:
@@ -129,6 +229,20 @@ install-web:
 tidy:
 	cd $(BACKEND) && $(GO) mod tidy
 
-## fmt: Format Go code
-fmt:
-	cd $(BACKEND) && $(GO) fmt ./...
+# check order: format → lint → types → tests → cover → security → arch.
+# Uses GIT_BASE/CHANGED_SINCE (default: master). Needs Postgres for Go tests.
+## check: Fast/medium local quality pipeline (agent Definition of Done)
+check: \
+	fmt format-web \
+	lint-backend lint-web \
+	typecheck-web \
+	cover-backend test-web \
+	govulncheck gitleaks audit-web \
+	go-arch-lint knip-web deps-web
+
+# gauntlet = check + mutation + acceptance + e2e.
+# Extra prereqs: Postgres + migrate-up-test; API on :8080 (make backend);
+# optional E2E_EMAIL / E2E_PASSWORD; once: bunx playwright install chromium.
+# Mutation uses CHANGED_SINCE (default: GIT_BASE/master). See AGENTS.md.
+## gauntlet: Full local pipeline (check + mutation + acceptance + e2e)
+gauntlet: check gomutants mutate-web acceptance-backend test-web-e2e

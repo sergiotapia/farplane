@@ -33,10 +33,12 @@ func New(pool *pgxpool.Pool) *Store {
 // NeedsSetup reports whether organizations has zero rows.
 func (s *Store) NeedsSetup(ctx context.Context) (bool, error) {
 	var exists bool
+
 	err := s.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM organizations LIMIT 1)`).Scan(&exists)
 	if err != nil {
 		return false, fmt.Errorf("needs setup: %w", err)
 	}
+
 	return !exists, nil
 }
 
@@ -67,27 +69,33 @@ func (s *Store) CompletePasswordSetup(ctx context.Context, in SetupPasswordInput
 		if err := lockSetup(ctx, tx); err != nil {
 			return err
 		}
+
 		needs, err := needsSetupTx(ctx, tx)
 		if err != nil {
 			return err
 		}
+
 		if !needs {
 			return ErrAlreadySetup
 		}
 
 		now := time.Now().UTC()
+
 		user, err := insertUser(ctx, tx, in.Email, &in.PasswordHash, in.DisplayName, nil, now)
 		if err != nil {
 			return err
 		}
+
 		org, err := insertOrganization(ctx, tx, in.OrganizationName, now)
 		if err != nil {
 			return err
 		}
+
 		member, err := insertOrganizationMember(ctx, tx, org.ID, user.ID, models.OrganizationRoleOwner, now)
 		if err != nil {
 			return err
 		}
+
 		session, err := insertSession(ctx, tx, in.SessionToken, user.ID, in.SessionExpiresAt, now)
 		if err != nil {
 			return err
@@ -99,11 +107,13 @@ func (s *Store) CompletePasswordSetup(ctx context.Context, in SetupPasswordInput
 			Member:       member,
 			Session:      session,
 		}
+
 		return nil
 	})
 	if err != nil {
 		return SetupPasswordResult{}, err
 	}
+
 	return out, nil
 }
 
@@ -126,30 +136,37 @@ func (s *Store) CompleteGoogleSetup(ctx context.Context, in SetupGoogleInput) (S
 		if err := lockSetup(ctx, tx); err != nil {
 			return err
 		}
+
 		needs, err := needsSetupTx(ctx, tx)
 		if err != nil {
 			return err
 		}
+
 		if !needs {
 			return ErrAlreadySetup
 		}
 
 		now := time.Now().UTC()
+
 		user, err := insertUser(ctx, tx, in.Email, nil, in.DisplayName, in.AvatarURL, now)
 		if err != nil {
 			return err
 		}
+
 		if err := insertUserIdentity(ctx, tx, user.ID, models.IdentityProviderGoogle, in.ProviderSubject, now); err != nil {
 			return err
 		}
+
 		org, err := insertOrganization(ctx, tx, in.OrganizationName, now)
 		if err != nil {
 			return err
 		}
+
 		member, err := insertOrganizationMember(ctx, tx, org.ID, user.ID, models.OrganizationRoleOwner, now)
 		if err != nil {
 			return err
 		}
+
 		session, err := insertSession(ctx, tx, in.SessionToken, user.ID, in.SessionExpiresAt, now)
 		if err != nil {
 			return err
@@ -161,11 +178,13 @@ func (s *Store) CompleteGoogleSetup(ctx context.Context, in SetupGoogleInput) (S
 			Member:       member,
 			Session:      session,
 		}
+
 		return nil
 	})
 	if err != nil {
 		return SetupPasswordResult{}, err
 	}
+
 	return out, nil
 }
 
@@ -183,13 +202,16 @@ func (s *Store) GetUserByEmail(ctx context.Context, email string) (models.User, 
 		FROM users
 		WHERE lower(email) = lower($1)
 	`
+
 	user, err := scanUser(s.pool.QueryRow(ctx, q, email))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return models.User{}, ErrNotFound
 	}
+
 	if err != nil {
 		return models.User{}, fmt.Errorf("get user by email: %w", err)
 	}
+
 	return user, nil
 }
 
@@ -200,13 +222,16 @@ func (s *Store) GetUserByID(ctx context.Context, userID string) (models.User, er
 		FROM users
 		WHERE id = $1
 	`
+
 	user, err := scanUser(s.pool.QueryRow(ctx, q, userID))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return models.User{}, ErrNotFound
 	}
+
 	if err != nil {
 		return models.User{}, fmt.Errorf("get user by id: %w", err)
 	}
+
 	return user, nil
 }
 
@@ -225,7 +250,9 @@ func (s *Store) GetUserWithOrgByUserID(ctx context.Context, userID string) (User
 		ORDER BY m.created_at ASC
 		LIMIT 1
 	`
+
 	var out UserWithOrg
+
 	err := s.pool.QueryRow(ctx, q, userID).Scan(
 		&out.User.ID, &out.User.Email, &out.User.PasswordHash, &out.User.DisplayName, &out.User.AvatarURL,
 		&out.User.CreatedAt, &out.User.UpdatedAt,
@@ -235,13 +262,16 @@ func (s *Store) GetUserWithOrgByUserID(ctx context.Context, userID string) (User
 	if errors.Is(err, pgx.ErrNoRows) {
 		return UserWithOrg{}, ErrNotFound
 	}
+
 	if err != nil {
 		return UserWithOrg{}, fmt.Errorf("get user with org: %w", err)
 	}
+
 	out.User.CreatedAt = out.User.CreatedAt.UTC()
 	out.User.UpdatedAt = out.User.UpdatedAt.UTC()
 	out.Organization.CreatedAt = out.Organization.CreatedAt.UTC()
 	out.Organization.UpdatedAt = out.Organization.UpdatedAt.UTC()
+
 	return out, nil
 }
 
@@ -252,14 +282,18 @@ func (s *Store) GetUserIDByGoogleSubject(ctx context.Context, subject string) (s
 		FROM user_identities
 		WHERE provider = $1 AND provider_subject = $2
 	`
+
 	var userID string
+
 	err := s.pool.QueryRow(ctx, q, models.IdentityProviderGoogle, subject).Scan(&userID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", ErrNotFound
 	}
+
 	if err != nil {
 		return "", fmt.Errorf("get user by google subject: %w", err)
 	}
+
 	return userID, nil
 }
 
@@ -267,10 +301,12 @@ func (s *Store) GetUserIDByGoogleSubject(ctx context.Context, subject string) (s
 // token is the raw cookie value; only its hash is stored.
 func (s *Store) CreateSession(ctx context.Context, token, userID string, expiresAt time.Time) (models.Session, error) {
 	now := time.Now().UTC()
+
 	session, err := insertSession(ctx, s.pool, token, userID, expiresAt, now)
 	if err != nil {
 		return models.Session{}, err
 	}
+
 	return session, nil
 }
 
@@ -282,14 +318,18 @@ func (s *Store) GetValidSessionUserID(ctx context.Context, token string, now tim
 		FROM sessions
 		WHERE token = $1 AND expires_at > $2
 	`
+
 	var userID string
+
 	err := s.pool.QueryRow(ctx, q, auth.HashSessionToken(token), now.UTC()).Scan(&userID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", ErrNotFound
 	}
+
 	if err != nil {
 		return "", fmt.Errorf("get session: %w", err)
 	}
+
 	return userID, nil
 }
 
@@ -300,6 +340,7 @@ func (s *Store) DeleteSessionByToken(ctx context.Context, token string) error {
 	if err != nil {
 		return fmt.Errorf("delete session: %w", err)
 	}
+
 	return nil
 }
 
@@ -309,15 +350,18 @@ func lockSetup(ctx context.Context, tx pgx.Tx) error {
 	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, setupLockKey); err != nil {
 		return fmt.Errorf("setup lock: %w", err)
 	}
+
 	return nil
 }
 
 func needsSetupTx(ctx context.Context, tx pgx.Tx) (bool, error) {
 	var exists bool
+
 	err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM organizations LIMIT 1)`).Scan(&exists)
 	if err != nil {
 		return false, fmt.Errorf("needs setup: %w", err)
 	}
+
 	return !exists, nil
 }
 
@@ -332,10 +376,12 @@ func insertUser(ctx context.Context, q querier, email string, passwordHash *stri
 		VALUES ($1, $2, $3, $4, $5, $5)
 		RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at
 	`
+
 	user, err := scanUser(q.QueryRow(ctx, sql, email, passwordHash, displayName, avatarURL, now))
 	if err != nil {
 		return models.User{}, fmt.Errorf("insert user: %w", err)
 	}
+
 	return user, nil
 }
 
@@ -347,6 +393,7 @@ func insertUserIdentity(ctx context.Context, q querier, userID, provider, subjec
 	if _, err := q.Exec(ctx, sql, userID, provider, subject, now); err != nil {
 		return fmt.Errorf("insert user identity: %w", err)
 	}
+
 	return nil
 }
 
@@ -356,13 +403,17 @@ func insertOrganization(ctx context.Context, q querier, name string, now time.Ti
 		VALUES ($1, $2, $2)
 		RETURNING id, name, created_at, updated_at
 	`
+
 	var org models.Organization
+
 	err := q.QueryRow(ctx, sql, name, now).Scan(&org.ID, &org.Name, &org.CreatedAt, &org.UpdatedAt)
 	if err != nil {
 		return models.Organization{}, fmt.Errorf("insert organization: %w", err)
 	}
+
 	org.CreatedAt = org.CreatedAt.UTC()
 	org.UpdatedAt = org.UpdatedAt.UTC()
+
 	return org, nil
 }
 
@@ -372,14 +423,18 @@ func insertOrganizationMember(ctx context.Context, q querier, organizationID, us
 		VALUES ($1, $2, $3, $4)
 		RETURNING id, organization_id, user_id, role, created_at
 	`
+
 	var m models.OrganizationMember
+
 	err := q.QueryRow(ctx, sql, organizationID, userID, role, now).Scan(
 		&m.ID, &m.OrganizationID, &m.UserID, &m.Role, &m.CreatedAt,
 	)
 	if err != nil {
 		return models.OrganizationMember{}, fmt.Errorf("insert organization member: %w", err)
 	}
+
 	m.CreatedAt = m.CreatedAt.UTC()
+
 	return m, nil
 }
 
@@ -389,26 +444,34 @@ func insertSession(ctx context.Context, q querier, rawToken, userID string, expi
 		VALUES ($1, $2, $3, $4)
 		RETURNING id, token, user_id, expires_at, created_at
 	`
+
 	tokenHash := auth.HashSessionToken(rawToken)
+
 	var sess models.Session
+
 	err := q.QueryRow(ctx, sql, tokenHash, userID, expiresAt.UTC(), now).Scan(
 		&sess.ID, &sess.Token, &sess.UserID, &sess.ExpiresAt, &sess.CreatedAt,
 	)
 	if err != nil {
 		return models.Session{}, fmt.Errorf("insert session: %w", err)
 	}
+
 	sess.ExpiresAt = sess.ExpiresAt.UTC()
 	sess.CreatedAt = sess.CreatedAt.UTC()
+
 	return sess, nil
 }
 
 func scanUser(row pgx.Row) (models.User, error) {
 	var u models.User
+
 	err := row.Scan(&u.ID, &u.Email, &u.PasswordHash, &u.DisplayName, &u.AvatarURL, &u.CreatedAt, &u.UpdatedAt)
 	if err != nil {
 		return models.User{}, err
 	}
+
 	u.CreatedAt = u.CreatedAt.UTC()
 	u.UpdatedAt = u.UpdatedAt.UTC()
+
 	return u, nil
 }

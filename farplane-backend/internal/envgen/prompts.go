@@ -46,11 +46,13 @@ func buildInitialPrompt(repoFullName, outFile, baseFile string) string {
 	b.WriteString("- Hex: mix archive.install github hexpm/hex branch latest --force\n")
 	b.WriteString("  (do not use mix local.hex / mix local.rebar — builds.hex.pm TLS often fails).\n")
 	b.WriteString("- Install only what this repo needs.\n")
+
 	if strings.TrimSpace(repoFullName) != "" {
 		b.WriteString("\nGitHub repository: ")
 		b.WriteString(repoFullName)
 		b.WriteString("\n")
 	}
+
 	return b.String()
 }
 
@@ -76,13 +78,16 @@ func buildRepairPrompt(repoFullName, outFile, buildLog string, attempt, maxAttem
 	b.WriteString(" of ")
 	b.WriteString(strconv.Itoa(maxAttempts))
 	b.WriteString(".\n")
+
 	if strings.TrimSpace(repoFullName) != "" {
 		b.WriteString("GitHub repository: ")
 		b.WriteString(repoFullName)
 		b.WriteString("\n")
 	}
+
 	b.WriteString("\nDocker build failure (tail):\n-----\n")
 	b.WriteString(strings.TrimSpace(buildLog))
 	b.WriteString("\n-----\n")
+
 	return b.String()
 }

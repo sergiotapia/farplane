@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo } from 'react'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/ui/button.tsx'
 import {
   Combobox,
   ComboboxContent,
@@ -9,20 +9,20 @@ import {
   ComboboxInput,
   ComboboxItem,
   ComboboxList,
-} from '@/components/ui/combobox'
-import { InputGroupAddon } from '@/components/ui/input-group'
+} from '@/components/ui/combobox.tsx'
+import { InputGroupAddon } from '@/components/ui/input-group.tsx'
 import {
   getLaneAgentModels,
   getLaneAgents,
-  laneAgentModelsQueryKey,
-  laneAgentsQueryKey,
-  laneQueryKey,
-  patchLane,
   type Lane,
   type LaneAgent,
   type LaneAgentModel,
   type LaneAgentModelSource,
-} from '@/lib/api'
+  laneAgentModelsQueryKey,
+  laneAgentsQueryKey,
+  laneQueryKey,
+  patchLane,
+} from '@/lib/api.ts'
 
 type ReasoningOption = {
   id: string
@@ -109,6 +109,7 @@ export function LaneAgentStrip({ lane, isOwner, turnRunning }: Props) {
   function switchAgent(agent: LaneAgent | null) {
     if (!agent || agent.provider === lane.agent_provider) return
     if (
+      // biome-ignore lint/suspicious/noAlert: intentional destructive confirm until shared dialog exists
       !window.confirm(
         'Switching agents starts a new AI session. Farplane will hand off a summary of this chat. Files in the Lane computer stay as they are.',
       )

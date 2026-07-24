@@ -49,6 +49,7 @@ func ModelSourceLabel(source string) string {
 	if label, ok := modelSourceLabels[source]; ok {
 		return label
 	}
+
 	return source
 }
 
@@ -73,17 +74,20 @@ func supportedSourcesForAgent(provider string) []string {
 // SourcesForAgent returns model sources available for an agent given set secrets.
 func SourcesForAgent(provider string, setSecrets map[string]bool) []ModelSourceOption {
 	supported := supportedSourcesForAgent(provider)
+
 	out := make([]ModelSourceOption, 0, len(supported))
 	for _, source := range supported {
 		secret := secretForModelSource(source)
 		if secret == "" || !setSecrets[secret] {
 			continue
 		}
+
 		out = append(out, ModelSourceOption{
 			ID:    source,
 			Label: ModelSourceLabel(source),
 		})
 	}
+
 	return out
 }
 
@@ -99,6 +103,7 @@ func DefaultModelSource(provider string, setSecrets map[string]bool) (string, bo
 	if len(sources) == 0 {
 		return "", false
 	}
+
 	return sources[0].ID, true
 }
 
@@ -110,5 +115,6 @@ func SourceAllowedForAgent(provider, source string, setSecrets map[string]bool) 
 			return true
 		}
 	}
+
 	return false
 }

@@ -14,16 +14,20 @@ func (c *Client) VerifyWebhookSignature(body []byte, signatureHeader string) boo
 	if c.webhookSecret == "" || signatureHeader == "" {
 		return false
 	}
+
 	const prefix = "sha256="
 	if !strings.HasPrefix(signatureHeader, prefix) {
 		return false
 	}
+
 	want, err := hex.DecodeString(strings.TrimPrefix(signatureHeader, prefix))
 	if err != nil {
 		return false
 	}
+
 	mac := hmac.New(sha256.New, []byte(c.webhookSecret))
 	_, _ = mac.Write(body)
+
 	return hmac.Equal(mac.Sum(nil), want)
 }
 
@@ -59,5 +63,6 @@ func ParseWebhookInstallation(body []byte) (WebhookInstallationPayload, error) {
 	if err := json.Unmarshal(body, &payload); err != nil {
 		return WebhookInstallationPayload{}, fmt.Errorf("decode webhook: %w", err)
 	}
+
 	return payload, nil
 }

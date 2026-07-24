@@ -10,7 +10,8 @@ const oauthErrorMessages: Record<string, string> = {
   session_failed: 'Could not create a session. Try again.',
   setup_already_completed: 'This install is already set up. Sign in instead.',
   setup_failed: 'Google setup failed. Try again.',
-  google_oauth_not_configured: 'Google sign-in is not configured on this install.',
+  google_oauth_not_configured:
+    'Google sign-in is not configured on this install.',
   database_unavailable: 'The database is unavailable. Try again later.',
   invalid_intent: 'Google sign-in failed. Try again.',
   invite_unavailable: 'This Lane invite is no longer available.',
@@ -27,23 +28,34 @@ const githubErrorMessages: Record<string, string> = {
   install_save_failed: 'Could not save the GitHub connection.',
   repo_sync_failed: 'Connected, but repository sync failed. Refresh later.',
   github_app_not_configured: 'GitHub App is not configured on this install.',
-  github_app_already_configured: 'A GitHub App is already configured for this install.',
-  missing_manifest_code: 'GitHub App creation did not return a code. Try again.',
+  github_app_already_configured:
+    'A GitHub App is already configured for this install.',
+  missing_manifest_code:
+    'GitHub App creation did not return a code. Try again.',
   manifest_exchange_failed: 'Could not finish GitHub App creation. Try again.',
   manifest_save_failed: 'Could not save GitHub App credentials. Try again.',
   manifest_forbidden: 'Only owners and admins can create the GitHub App.',
-  manifest_client_failed: 'GitHub App was created but could not be loaded. Restart Farplane.',
-  install_forbidden: 'You are not allowed to connect GitHub for this organization.',
-  installation_owned: 'That GitHub installation belongs to another Farplane organization.',
+  manifest_client_failed:
+    'GitHub App was created but could not be loaded. Restart Farplane.',
+  install_forbidden:
+    'You are not allowed to connect GitHub for this organization.',
+  installation_owned:
+    'That GitHub installation belongs to another Farplane organization.',
   database_unavailable: 'The database is unavailable. Try again later.',
 }
 
 export function messageForOAuthError(code: string | undefined): string | null {
   if (!code) return null
-  return oauthErrorMessages[code] ?? 'Google sign-in failed. Try again.'
+  if (Object.hasOwn(oauthErrorMessages, code)) {
+    return oauthErrorMessages[code]
+  }
+  return 'Google sign-in failed. Try again.'
 }
 
 export function messageForGitHubError(code: string | undefined): string | null {
   if (!code) return null
-  return githubErrorMessages[code] ?? 'GitHub connect failed. Try again.'
+  if (Object.hasOwn(githubErrorMessages, code)) {
+    return githubErrorMessages[code]
+  }
+  return 'GitHub connect failed. Try again.'
 }

@@ -28,9 +28,11 @@ type stubGenerator struct {
 func (s stubGenerator) Generate(ctx context.Context, req envgen.Request) (envgen.Result, error) {
 	_ = ctx
 	_ = req
+
 	if s.err != nil {
 		return envgen.Result{}, s.err
 	}
+
 	return envgen.Result{
 		DockerfileText: s.dockerfile,
 		Log:            s.log,
@@ -44,15 +46,19 @@ func TestScratchEnvironmentGetUpsertValidate(t *testing.T) {
 
 	getReq := httptest.NewRequest(http.MethodGet, "/api/v1/scratch-environment", nil)
 	getReq.AddCookie(cookie)
+
 	getRec := httptest.NewRecorder()
 	engine.ServeHTTP(getRec, getReq)
+
 	if getRec.Code != http.StatusOK {
 		t.Fatalf("get scratch = %d body=%s", getRec.Code, getRec.Body.String())
 	}
+
 	var env map[string]any
 	if err := json.Unmarshal(getRec.Body.Bytes(), &env); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
+
 	if env["validation_status"] != models.EnvironmentValidationValid {
 		t.Fatalf("setup should leave scratch valid, got %#v", env["validation_status"])
 	}
@@ -63,11 +69,14 @@ func TestScratchEnvironmentGetUpsertValidate(t *testing.T) {
 	putReq := httptest.NewRequest(http.MethodPut, "/api/v1/scratch-environment", bytes.NewReader(body))
 	putReq.Header.Set("Content-Type", "application/json")
 	putReq.AddCookie(cookie)
+
 	putRec := httptest.NewRecorder()
 	engine.ServeHTTP(putRec, putReq)
+
 	if putRec.Code != http.StatusOK {
 		t.Fatalf("put scratch = %d body=%s", putRec.Code, putRec.Body.String())
 	}
+
 	_ = json.Unmarshal(putRec.Body.Bytes(), &env)
 	if env["validation_status"] != models.EnvironmentValidationInvalid {
 		t.Fatalf("after edit want invalid, got %#v", env["validation_status"])
@@ -75,11 +84,14 @@ func TestScratchEnvironmentGetUpsertValidate(t *testing.T) {
 
 	valReq := httptest.NewRequest(http.MethodPost, "/api/v1/scratch-environment/validate", nil)
 	valReq.AddCookie(cookie)
+
 	valRec := httptest.NewRecorder()
 	engine.ServeHTTP(valRec, valReq)
+
 	if valRec.Code != http.StatusOK {
 		t.Fatalf("validate scratch = %d body=%s", valRec.Code, valRec.Body.String())
 	}
+
 	_ = json.Unmarshal(valRec.Body.Bytes(), &env)
 	if env["validation_status"] != models.EnvironmentValidationValid {
 		t.Fatalf("after validate want valid, got %#v", env["validation_status"])
@@ -104,10 +116,12 @@ func TestProjectEnvironmentGenerateAndLaneCreate(t *testing.T) {
 		httpapi.WithProjectWorkspaceClone(func(ctx context.Context, project models.Project) (string, func(), error) {
 			_ = ctx
 			_ = project
+
 			dir := t.TempDir()
 			if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/app\n"), 0o644); err != nil {
 				return "", nil, err
 			}
+
 			return dir, func() {}, nil
 		}),
 	)
@@ -121,7 +135,9 @@ func TestProjectEnvironmentGenerateAndLaneCreate(t *testing.T) {
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("setup status = %d body=%s", rec.Code, rec.Body.String())
 	}
+
 	cookie := loginCookie(t, engine, "owner@example.com", "password1")
+
 	principal := mustPrincipal(t, engine)
 	if err := st.SetOrganizationSecret(
 		context.Background(),
@@ -133,14 +149,17 @@ func TestProjectEnvironmentGenerateAndLaneCreate(t *testing.T) {
 	); err != nil {
 		t.Fatalf("secret: %v", err)
 	}
+
 	if _, err := st.EnsureScratchEnvironment(context.Background(), principal.orgID, principal.userID); err != nil {
 		t.Fatalf("scratch: %v", err)
 	}
+
 	if _, err := st.CompleteScratchEnvironmentValidation(
 		context.Background(), principal.orgID, true, "farplane/test:latest", "ok",
 	); err != nil {
 		t.Fatalf("validate scratch: %v", err)
 	}
+
 	project := seedProject(t, st, principal)
 
 	missing := createLaneExpectError(t, engine, cookie, map[string]any{
@@ -157,25 +176,33 @@ func TestProjectEnvironmentGenerateAndLaneCreate(t *testing.T) {
 	)
 	genReq.Header.Set("Content-Type", "application/json")
 	genReq.AddCookie(cookie)
+
 	genRec := httptest.NewRecorder()
 	engine.ServeHTTP(genRec, genReq)
+
 	if genRec.Code != http.StatusOK {
 		t.Fatalf("generate = %d body=%s", genRec.Code, genRec.Body.String())
 	}
+
 	var env map[string]any
 	if err := json.Unmarshal(genRec.Body.Bytes(), &env); err != nil {
 		t.Fatalf("decode env: %v", err)
 	}
+
 	if env["generation_status"] != models.EnvironmentGenerationIdle {
 		t.Fatalf("generation_status = %#v", env["generation_status"])
 	}
+
 	if env["validation_status"] != models.EnvironmentValidationValid {
 		t.Fatalf("generate should mark valid, got %#v", env["validation_status"])
 	}
+
 	if env["validated_image_reference"] != "farplane-envgen:stub" {
 		t.Fatalf("validated_image_reference = %#v", env["validated_image_reference"])
 	}
-	if !strings.Contains(env["dockerfile_text"].(string), "FROM debian:bookworm-slim") {
+
+	dockerfileText, ok := env["dockerfile_text"].(string)
+	if !ok || !strings.Contains(dockerfileText, "FROM debian:bookworm-slim") {
 		t.Fatalf("dockerfile = %#v", env["dockerfile_text"])
 	}
 
@@ -197,17 +224,23 @@ func createLaneExpectError(
 	wantStatus int,
 ) string {
 	t.Helper()
+
 	raw, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/lanes", bytes.NewReader(raw))
 	req.Header.Set("Content-Type", "application/json")
 	req.AddCookie(cookie)
+
 	rec := httptest.NewRecorder()
 	engine.ServeHTTP(rec, req)
+
 	if rec.Code != wantStatus {
 		t.Fatalf("create lane status = %d body=%s, want %d", rec.Code, rec.Body.String(), wantStatus)
 	}
+
 	var out map[string]any
+
 	_ = json.Unmarshal(rec.Body.Bytes(), &out)
 	msg, _ := out["error"].(string)
+
 	return msg
 }

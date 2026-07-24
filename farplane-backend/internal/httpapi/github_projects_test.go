@@ -35,6 +35,7 @@ func (f *fakeGitHub) GetInstallation(ctx context.Context, installationID int64) 
 	_ = ctx
 	out := f.installation
 	out.ID = installationID
+
 	return out, nil
 }
 
@@ -42,18 +43,21 @@ func (f *fakeGitHub) CreateInstallationToken(ctx context.Context, installationID
 	_ = ctx
 	_ = installationID
 	f.tokenCalls++
+
 	return "ghs_fake", time.Now().UTC().Add(time.Hour), nil
 }
 
 func (f *fakeGitHub) ListInstallationRepositories(ctx context.Context, installationToken string) ([]githubapp.Repository, error) {
 	_ = ctx
 	_ = installationToken
+
 	return f.repos, nil
 }
 
 func (f *fakeGitHub) VerifyWebhookSignature(body []byte, signatureHeader string) bool {
 	_ = body
 	_ = signatureHeader
+
 	return f.webhookOK
 }
 
@@ -75,16 +79,20 @@ func setupAuthedEngine(
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("setup status = %d body=%s", rec.Code, rec.Body.String())
 	}
+
 	var sessionCookie *http.Cookie
+
 	for _, c := range rec.Result().Cookies() {
 		if c.Name == "farplane_session" {
 			sessionCookie = c
 			break
 		}
 	}
+
 	if sessionCookie == nil {
 		t.Fatal("missing session cookie")
 	}
+
 	return engine, sessionCookie, st, pool
 }
 
@@ -109,21 +117,26 @@ func TestGitHubInstallStartCallbackAndRepoUnion(t *testing.T) {
 
 	startReq := httptest.NewRequest(http.MethodPost, "/api/v1/github/install/start", nil)
 	startReq.AddCookie(cookie)
+
 	startRec := httptest.NewRecorder()
 	engine.ServeHTTP(startRec, startReq)
+
 	if startRec.Code != http.StatusOK {
 		t.Fatalf("install start = %d body=%s", startRec.Code, startRec.Body.String())
 	}
+
 	var startBody struct {
 		URL string `json:"url"`
 	}
 	if err := json.Unmarshal(startRec.Body.Bytes(), &startBody); err != nil {
 		t.Fatalf("decode start: %v", err)
 	}
+
 	_, state, ok := strings.Cut(startBody.URL, "state=")
 	if !ok || state == "" {
 		t.Fatalf("install url missing state: %q", startBody.URL)
 	}
+
 	parsed, err := auth.ParseGitHubInstallState(testConfig().SessionSecret, state, time.Now().UTC())
 	if err != nil {
 		t.Fatalf("ParseGitHubInstallState: %v", err)
@@ -136,12 +149,15 @@ func TestGitHubInstallStartCallbackAndRepoUnion(t *testing.T) {
 	)
 	cbRec := httptest.NewRecorder()
 	engine.ServeHTTP(cbRec, cbReq)
+
 	if cbRec.Code != http.StatusFound {
 		t.Fatalf("callback = %d body=%s", cbRec.Code, cbRec.Body.String())
 	}
+
 	if loc := cbRec.Header().Get("Location"); loc != "http://localhost:3000/settings/github?github=connected" {
 		t.Fatalf("Location = %q", loc)
 	}
+
 	if fake.tokenCalls < 1 {
 		t.Fatal("expected repo sync via installation token")
 	}
@@ -158,6 +174,7 @@ func TestGitHubInstallStartCallbackAndRepoUnion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("UpsertGitHubInstallation org: %v", err)
 	}
+
 	if err := st.ReplaceGitHubRepositories(context.Background(), orgInst.ID, []store.GitHubRepoSync{
 		{
 			GitHubRepositoryID: 1001, FullName: "acme/private-api", DefaultBranch: "main",
@@ -173,11 +190,14 @@ func TestGitHubInstallStartCallbackAndRepoUnion(t *testing.T) {
 
 	listReq := httptest.NewRequest(http.MethodGet, "/api/v1/github/repositories", nil)
 	listReq.AddCookie(cookie)
+
 	listRec := httptest.NewRecorder()
 	engine.ServeHTTP(listRec, listReq)
+
 	if listRec.Code != http.StatusOK {
 		t.Fatalf("list repos = %d body=%s", listRec.Code, listRec.Body.String())
 	}
+
 	var listBody struct {
 		Repositories []struct {
 			GitHubRepositoryID int64  `json:"github_repository_id"`
@@ -188,16 +208,20 @@ func TestGitHubInstallStartCallbackAndRepoUnion(t *testing.T) {
 	if err := json.Unmarshal(listRec.Body.Bytes(), &listBody); err != nil {
 		t.Fatalf("decode repos: %v", err)
 	}
+
 	if len(listBody.Repositories) != 2 {
 		t.Fatalf("repos len = %d, want 2: %+v", len(listBody.Repositories), listBody.Repositories)
 	}
+
 	byID := map[int64]string{}
 	for _, repo := range listBody.Repositories {
 		byID[repo.GitHubRepositoryID] = repo.FullName + "|" + repo.AccountType
 	}
+
 	if byID[1001] != "acme/private-api|Organization" {
 		t.Fatalf("repo 1001 = %q, want org preference", byID[1001])
 	}
+
 	if byID[2002] != "acme/web|Organization" {
 		t.Fatalf("repo 2002 = %q", byID[2002])
 	}
@@ -224,8 +248,10 @@ func TestDisconnectACLAndProjectCreate(t *testing.T) {
 
 	meReq := httptest.NewRequest(http.MethodGet, "/api/v1/me", nil)
 	meReq.AddCookie(ownerCookie)
+
 	meRec := httptest.NewRecorder()
 	engine.ServeHTTP(meRec, meReq)
+
 	var me struct {
 		User struct {
 			ID string `json:"id"`
@@ -254,6 +280,7 @@ func TestDisconnectACLAndProjectCreate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("upsert install: %v", err)
 	}
+
 	if err := st.ReplaceGitHubRepositories(context.Background(), inst.ID, []store.GitHubRepoSync{
 		{
 			GitHubRepositoryID: 55, FullName: "alice/app", DefaultBranch: "main",
@@ -265,8 +292,10 @@ func TestDisconnectACLAndProjectCreate(t *testing.T) {
 
 	delReq := httptest.NewRequest(http.MethodDelete, "/api/v1/github/installations/"+inst.ID, nil)
 	delReq.AddCookie(memberCookie)
+
 	delRec := httptest.NewRecorder()
 	engine.ServeHTTP(delRec, delReq)
+
 	if delRec.Code != http.StatusForbidden {
 		t.Fatalf("member disconnect = %d, want 403", delRec.Code)
 	}
@@ -278,8 +307,10 @@ func TestDisconnectACLAndProjectCreate(t *testing.T) {
 	createReq := httptest.NewRequest(http.MethodPost, "/api/v1/projects", bytes.NewReader(createBody))
 	createReq.Header.Set("Content-Type", "application/json")
 	createReq.AddCookie(memberCookie)
+
 	createRec := httptest.NewRecorder()
 	engine.ServeHTTP(createRec, createReq)
+
 	if createRec.Code != http.StatusCreated {
 		t.Fatalf("create project = %d body=%s", createRec.Code, createRec.Body.String())
 	}
@@ -291,8 +322,10 @@ func TestDisconnectACLAndProjectCreate(t *testing.T) {
 	badReq := httptest.NewRequest(http.MethodPost, "/api/v1/projects", bytes.NewReader(badBody))
 	badReq.Header.Set("Content-Type", "application/json")
 	badReq.AddCookie(memberCookie)
+
 	badRec := httptest.NewRecorder()
 	engine.ServeHTTP(badRec, badReq)
+
 	if badRec.Code != http.StatusBadRequest {
 		t.Fatalf("missing repo create = %d, want 400", badRec.Code)
 	}
@@ -300,10 +333,12 @@ func TestDisconnectACLAndProjectCreate(t *testing.T) {
 	if err := st.SoftRemoveGitHubRepositories(context.Background(), inst.ID, []int64{55}); err != nil {
 		t.Fatalf("soft remove: %v", err)
 	}
+
 	project, err := st.GetProject(context.Background(), mustProjectID(t, createRec.Body.Bytes()))
 	if err != nil {
 		t.Fatalf("get project: %v", err)
 	}
+
 	if project.GitHubAccessStatus != models.ProjectGitHubAccessRevoked {
 		t.Fatalf("access = %q, want revoked", project.GitHubAccessStatus)
 	}
@@ -315,16 +350,20 @@ func TestDisconnectACLAndProjectCreate(t *testing.T) {
 	againReq := httptest.NewRequest(http.MethodPost, "/api/v1/projects", bytes.NewReader(againBody))
 	againReq.Header.Set("Content-Type", "application/json")
 	againReq.AddCookie(ownerCookie)
+
 	againRec := httptest.NewRecorder()
 	engine.ServeHTTP(againRec, againReq)
+
 	if againRec.Code != http.StatusBadRequest {
 		t.Fatalf("revoked repo create = %d, want 400 body=%s", againRec.Code, againRec.Body.String())
 	}
 
 	delOwner := httptest.NewRequest(http.MethodDelete, "/api/v1/github/installations/"+inst.ID, nil)
 	delOwner.AddCookie(ownerCookie)
+
 	delOwnerRec := httptest.NewRecorder()
 	engine.ServeHTTP(delOwnerRec, delOwner)
+
 	if delOwnerRec.Code != http.StatusNoContent {
 		t.Fatalf("owner disconnect = %d", delOwnerRec.Code)
 	}
@@ -354,11 +393,14 @@ func TestGitHubInstallPreservesConnectedByAndRejectsCrossOrg(t *testing.T) {
 
 	startReq := httptest.NewRequest(http.MethodPost, "/api/v1/github/install/start", nil)
 	startReq.AddCookie(ownerCookie)
+
 	startRec := httptest.NewRecorder()
 	engine.ServeHTTP(startRec, startReq)
+
 	var startBody struct {
 		URL string `json:"url"`
 	}
+
 	_ = json.Unmarshal(startRec.Body.Bytes(), &startBody)
 	_, ownerState, _ := strings.Cut(startBody.URL, "state=")
 
@@ -369,9 +411,11 @@ func TestGitHubInstallPreservesConnectedByAndRejectsCrossOrg(t *testing.T) {
 	)
 	cbRec := httptest.NewRecorder()
 	engine.ServeHTTP(cbRec, cbReq)
+
 	if cbRec.Code != http.StatusFound {
 		t.Fatalf("owner callback = %d body=%s", cbRec.Code, cbRec.Body.String())
 	}
+
 	if loc := cbRec.Header().Get("Location"); !strings.Contains(loc, "github=connected") {
 		t.Fatalf("Location = %q", loc)
 	}
@@ -380,6 +424,7 @@ func TestGitHubInstallPreservesConnectedByAndRejectsCrossOrg(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get install: %v", err)
 	}
+
 	if inst.ConnectedByUserID != principal.userID {
 		t.Fatalf("connected_by = %q, want owner %q", inst.ConnectedByUserID, principal.userID)
 	}
@@ -387,11 +432,14 @@ func TestGitHubInstallPreservesConnectedByAndRejectsCrossOrg(t *testing.T) {
 	// Member re-runs install callback for the same installation — must not steal connected_by.
 	memberStart := httptest.NewRequest(http.MethodPost, "/api/v1/github/install/start", nil)
 	memberStart.AddCookie(memberCookie)
+
 	memberStartRec := httptest.NewRecorder()
 	engine.ServeHTTP(memberStartRec, memberStart)
+
 	var memberStartBody struct {
 		URL string `json:"url"`
 	}
+
 	_ = json.Unmarshal(memberStartRec.Body.Bytes(), &memberStartBody)
 	_, memberState, _ := strings.Cut(memberStartBody.URL, "state=")
 
@@ -402,16 +450,20 @@ func TestGitHubInstallPreservesConnectedByAndRejectsCrossOrg(t *testing.T) {
 	)
 	memberCBRec := httptest.NewRecorder()
 	engine.ServeHTTP(memberCBRec, memberCB)
+
 	if memberCBRec.Code != http.StatusFound {
 		t.Fatalf("member callback = %d", memberCBRec.Code)
 	}
+
 	if loc := memberCBRec.Header().Get("Location"); !strings.Contains(loc, "github=connected") {
 		t.Fatalf("member Location = %q", loc)
 	}
+
 	inst2, err := st.GetGitHubInstallationByGitHubID(context.Background(), 4242)
 	if err != nil {
 		t.Fatalf("get install after member: %v", err)
 	}
+
 	if inst2.ConnectedByUserID != principal.userID {
 		t.Fatalf("connected_by stolen: got %q (member=%q)", inst2.ConnectedByUserID, memberID)
 	}
@@ -424,6 +476,7 @@ func TestGitHubInstallPreservesConnectedByAndRejectsCrossOrg(t *testing.T) {
 	if err != nil {
 		t.Fatalf("insert other org: %v", err)
 	}
+
 	_, err = st.UpsertGitHubInstallation(context.Background(), store.UpsertGitHubInstallationInput{
 		OrganizationID:       "00000000-0000-4000-8000-000000000099",
 		GitHubInstallationID: 4242,
@@ -462,8 +515,10 @@ func TestGitHubWebhookStoreFailureReturns500(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/github/webhook", bytes.NewReader(body))
 	req.Header.Set("X-GitHub-Event", "installation")
 	req.Header.Set("X-Hub-Signature-256", "sha256=00")
+
 	rec := httptest.NewRecorder()
 	engine.ServeHTTP(rec, req)
+
 	if rec.Code != http.StatusInternalServerError {
 		t.Fatalf("webhook = %d, want 500 body=%s", rec.Code, rec.Body.String())
 	}
@@ -476,6 +531,7 @@ type failingListGitHub struct {
 func (f *failingListGitHub) ListInstallationRepositories(ctx context.Context, installationToken string) ([]githubapp.Repository, error) {
 	_ = ctx
 	_ = installationToken
+
 	return nil, errors.New("github list failed")
 }
 
@@ -484,6 +540,7 @@ func TestGitHubWebhookSignatureAndUninstall(t *testing.T) {
 	engine, _, st, _ := setupAuthedEngine(t, fake)
 
 	principal := mustPrincipal(t, engine)
+
 	inst, err := st.UpsertGitHubInstallation(context.Background(), store.UpsertGitHubInstallationInput{
 		OrganizationID:       principal.orgID,
 		GitHubInstallationID: 321,
@@ -496,14 +553,17 @@ func TestGitHubWebhookSignatureAndUninstall(t *testing.T) {
 	if err != nil {
 		t.Fatalf("upsert: %v", err)
 	}
+
 	_ = inst
 
 	body := []byte(`{"action":"deleted","installation":{"id":321}}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/github/webhook", bytes.NewReader(body))
 	req.Header.Set("X-GitHub-Event", "installation")
 	req.Header.Set("X-Hub-Signature-256", "sha256=00")
+
 	rec := httptest.NewRecorder()
 	engine.ServeHTTP(rec, req)
+
 	if rec.Code != http.StatusNoContent {
 		t.Fatalf("webhook = %d body=%s", rec.Code, rec.Body.String())
 	}
@@ -512,6 +572,7 @@ func TestGitHubWebhookSignatureAndUninstall(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get install: %v", err)
 	}
+
 	if got.UninstalledAt == nil {
 		t.Fatal("expected uninstalled_at set")
 	}
@@ -520,8 +581,10 @@ func TestGitHubWebhookSignatureAndUninstall(t *testing.T) {
 	bad := httptest.NewRequest(http.MethodPost, "/api/v1/github/webhook", bytes.NewReader(body))
 	bad.Header.Set("X-GitHub-Event", "installation")
 	bad.Header.Set("X-Hub-Signature-256", "sha256=00")
+
 	badRec := httptest.NewRecorder()
 	engine.ServeHTTP(badRec, bad)
+
 	if badRec.Code != http.StatusUnauthorized {
 		t.Fatalf("bad sig = %d, want 401", badRec.Code)
 	}
@@ -538,11 +601,14 @@ func mustPrincipal(t *testing.T, engine http.Handler) testPrincipal {
 	cookie := loginCookie(t, engine, "owner@example.com", "password1")
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/me", nil)
 	req.AddCookie(cookie)
+
 	rec := httptest.NewRecorder()
 	engine.ServeHTTP(rec, req)
+
 	if rec.Code != http.StatusOK {
 		t.Fatalf("me = %d body=%s", rec.Code, rec.Body.String())
 	}
+
 	var me struct {
 		User struct {
 			ID string `json:"id"`
@@ -554,47 +620,60 @@ func mustPrincipal(t *testing.T, engine http.Handler) testPrincipal {
 	if err := json.Unmarshal(rec.Body.Bytes(), &me); err != nil {
 		t.Fatalf("decode me: %v", err)
 	}
+
 	return testPrincipal{userID: me.User.ID, orgID: me.Organization.ID}
 }
 
 func loginCookie(t *testing.T, engine http.Handler, email, password string) *http.Cookie {
 	t.Helper()
+
 	raw, _ := json.Marshal(map[string]string{"email": email, "password": password})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", bytes.NewReader(raw))
 	req.Header.Set("Content-Type", "application/json")
+
 	rec := httptest.NewRecorder()
 	engine.ServeHTTP(rec, req)
+
 	if rec.Code != http.StatusOK {
 		t.Fatalf("login = %d body=%s", rec.Code, rec.Body.String())
 	}
+
 	for _, c := range rec.Result().Cookies() {
 		if c.Name == "farplane_session" {
 			return c
 		}
 	}
+
 	t.Fatal("missing session cookie after login")
+
 	return nil
 }
 
 func mustProjectID(t *testing.T, raw []byte) string {
 	t.Helper()
+
 	var body struct {
 		ID string `json:"id"`
 	}
 	if err := json.Unmarshal(raw, &body); err != nil || body.ID == "" {
 		t.Fatalf("project id missing: %s", raw)
 	}
+
 	return body.ID
 }
 
 func insertMemberUser(t *testing.T, pool *pgxpool.Pool, organizationID, email, displayName, password string) string {
 	t.Helper()
+
 	hash, err := auth.HashPassword(password)
 	if err != nil {
 		t.Fatalf("HashPassword: %v", err)
 	}
+
 	now := time.Now().UTC()
+
 	var userID string
+
 	err = pool.QueryRow(context.Background(), `
 		INSERT INTO users (email, password_hash, display_name, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $4)
@@ -603,6 +682,7 @@ func insertMemberUser(t *testing.T, pool *pgxpool.Pool, organizationID, email, d
 	if err != nil {
 		t.Fatalf("insert user: %v", err)
 	}
+
 	_, err = pool.Exec(context.Background(), `
 		INSERT INTO organization_members (organization_id, user_id, role, created_at)
 		VALUES ($1, $2, $3, $4)
@@ -610,5 +690,6 @@ func insertMemberUser(t *testing.T, pool *pgxpool.Pool, organizationID, email, d
 	if err != nil {
 		t.Fatalf("insert member: %v", err)
 	}
+
 	return userID
 }

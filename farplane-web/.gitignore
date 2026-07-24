@@ -11,3 +11,11 @@ dist-ssr
 .vinxi
 __unconfig*
 todos.json
+coverage
+.features-gen
+playwright-report
+test-results
+reports
+.stryker-tmp
+stryker.log
+e2e/.credentials.json

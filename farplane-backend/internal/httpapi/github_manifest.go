@@ -24,45 +24,51 @@ type manifestStartRequest struct {
 	GitHubOrganizationLogin string `json:"github_organization_login"`
 }
 
-func (a *api) handleGitHubManifestStart(c *gin.Context) {
+func (a *api) handleGitHubManifestStart(c *gin.Context) { //nolint:gocyclo // multi-branch orchestration; keep under threshold when rewriting
 	principal, ok := a.requirePrincipal(c)
 	if !ok {
 		return
 	}
+
 	if !isOrgAdmin(principal.Role) {
-		c.JSON(http.StatusForbidden, gin.H{"error": "only owners and admins can create the GitHub App"})
+		c.JSON(http.StatusForbidden, gin.H{jsonKeyError: "only owners and admins can create the GitHub App"})
 		return
 	}
+
 	if a.githubApp() != nil {
-		c.JSON(http.StatusConflict, gin.H{"error": "github app is already configured"})
+		c.JSON(http.StatusConflict, gin.H{jsonKeyError: "github app is already configured"})
 		return
 	}
+
 	if !config.IsPublicAPIBaseURL(a.apiBaseURL()) {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":        "APP_API_BASE_URL must be a public https URL (for example your ngrok https URL). GitHub rejects localhost, and http is not allowed.",
+			jsonKeyError:   "APP_API_BASE_URL must be a public https URL (for example your ngrok https URL). GitHub rejects localhost, and http is not allowed.",
 			"api_base_url": a.apiBaseURL(),
 		})
+
 		return
 	}
 
 	var req manifestStartRequest
 	if c.Request.ContentLength > 0 {
 		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+			c.JSON(http.StatusBadRequest, gin.H{jsonKeyError: errInvalidRequestBody})
 			return
 		}
 	}
+
 	orgLogin := strings.TrimSpace(req.GitHubOrganizationLogin)
 	if utf8.RuneCountInString(orgLogin) > 100 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "github_organization_login is too long"})
+		c.JSON(http.StatusBadRequest, gin.H{jsonKeyError: "github_organization_login is too long"})
 		return
 	}
 
 	nonce, err := auth.NewOAuthNonce()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to start manifest"})
+		c.JSON(http.StatusInternalServerError, gin.H{jsonKeyError: "failed to start manifest"})
 		return
 	}
+
 	state, err := auth.SignGitHubInstallState(a.cfg.SessionSecret, auth.GitHubInstallState{
 		OrganizationID: principal.Organization.ID,
 		UserID:         principal.User.ID,
@@ -70,7 +76,7 @@ func (a *api) handleGitHubManifestStart(c *gin.Context) {
 		ExpiresAtUnix:  time.Now().UTC().Add(githubManifestStateTTL).Unix(),
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to start manifest"})
+		c.JSON(http.StatusInternalServerError, gin.H{jsonKeyError: "failed to start manifest"})
 		return
 	}
 
@@ -79,9 +85,10 @@ func (a *api) handleGitHubManifestStart(c *gin.Context) {
 		a.apiBaseURL(),
 		principal.Organization.Name,
 	)
+
 	raw, err := json.Marshal(manifest)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to build manifest"})
+		c.JSON(http.StatusInternalServerError, gin.H{jsonKeyError: "failed to build manifest"})
 		return
 	}
 
@@ -92,22 +99,25 @@ func (a *api) handleGitHubManifestStart(c *gin.Context) {
 	})
 }
 
-func (a *api) handleGitHubManifestCallback(c *gin.Context) {
+func (a *api) handleGitHubManifestCallback(c *gin.Context) { //nolint:gocyclo // multi-branch orchestration; keep under threshold when rewriting
 	if a.store == nil {
 		a.redirectGitHubError(c, "database_unavailable")
 		return
 	}
+
 	if errCode := trimNonEmpty(c.Query("error")); errCode != "" {
 		a.redirectGitHubError(c, "github_denied")
 		return
 	}
 
 	stateRaw := trimNonEmpty(c.Query("state"))
+
 	state, err := auth.ParseGitHubInstallState(a.cfg.SessionSecret, stateRaw, time.Now().UTC())
 	if err != nil {
 		a.redirectGitHubError(c, "invalid_state")
 		return
 	}
+
 	code := trimNonEmpty(c.Query("code"))
 	if code == "" {
 		a.redirectGitHubError(c, "missing_manifest_code")
@@ -119,6 +129,7 @@ func (a *api) handleGitHubManifestCallback(c *gin.Context) {
 		a.redirectGitHubError(c, "manifest_save_failed")
 		return
 	}
+
 	if principal.Organization.ID != state.OrganizationID || !isOrgAdmin(principal.Role) {
 		a.redirectGitHubError(c, "manifest_forbidden")
 		return
@@ -145,7 +156,9 @@ func (a *api) handleGitHubManifestCallback(c *gin.Context) {
 			a.redirectGitHubError(c, "github_app_already_configured")
 			return
 		}
+
 		a.redirectGitHubError(c, "manifest_save_failed")
+
 		return
 	}
 
@@ -159,6 +172,7 @@ func (a *api) handleGitHubManifestCallback(c *gin.Context) {
 		a.redirectGitHubError(c, "manifest_client_failed")
 		return
 	}
+
 	a.setGitHubApp(client)
 
 	c.Redirect(http.StatusFound, a.cfg.AppBaseURL+"/settings/github?github=app_created")
@@ -168,6 +182,7 @@ func (a *api) convertManifest(ctx context.Context, code string) (githubapp.Manif
 	if a.manifestConvert != nil {
 		return a.manifestConvert(ctx, code)
 	}
+
 	return githubapp.ConvertManifest(ctx, nil, "", code)
 }
 
@@ -175,6 +190,7 @@ func (a *api) apiBaseURL() string {
 	if strings.TrimSpace(a.cfg.AppAPIBaseURL) != "" {
 		return strings.TrimRight(a.cfg.AppAPIBaseURL, "/")
 	}
+
 	return "http://localhost:8080"
 }
 

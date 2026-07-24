@@ -1,10 +1,19 @@
-import { Outlet, createFileRoute, isRedirect, redirect } from '@tanstack/react-router'
+import {
+  createFileRoute,
+  isRedirect,
+  Outlet,
+  redirect,
+} from '@tanstack/react-router'
 
-import { AppSidebar } from '@/components/app-sidebar'
-import { Separator } from '@/components/ui/separator'
-import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
-import { TooltipProvider } from '@/components/ui/tooltip'
-import { ApiError, getMe, meQueryKey, type MeResponse } from '@/lib/api'
+import { AppSidebar } from '@/components/app-sidebar.tsx'
+import { Separator } from '@/components/ui/separator.tsx'
+import {
+  SidebarInset,
+  SidebarProvider,
+  SidebarTrigger,
+} from '@/components/ui/sidebar.tsx'
+import { TooltipProvider } from '@/components/ui/tooltip.tsx'
+import { ApiError, getMe, type MeResponse, meQueryKey } from '@/lib/api.ts'
 
 export type AppRouteContext = {
   me: MeResponse

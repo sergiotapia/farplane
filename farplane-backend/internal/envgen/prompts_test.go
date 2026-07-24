@@ -24,9 +24,11 @@ func TestBuildInitialPromptOmitsInAgentDockerBuild(t *testing.T) {
 			t.Fatalf("initial prompt missing %q:\n%s", want, prompt)
 		}
 	}
+
 	if strings.Contains(prompt, "docker build -t") {
 		t.Fatalf("initial prompt must not ask the agent to docker build:\n%s", prompt)
 	}
+
 	if strings.Contains(prompt, "===== Farplane base Dockerfile =====") {
 		t.Fatalf("initial prompt must not paste the full base Dockerfile:\n%s", prompt)
 	}

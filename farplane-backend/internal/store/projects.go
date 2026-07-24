@@ -29,10 +29,12 @@ var ErrProjectRepoExists = errors.New("project already exists for repository")
 // CreateProject creates a Project from a pickable GitHub repository.
 func (s *Store) CreateProject(ctx context.Context, in CreateProjectInput) (models.Project, error) {
 	now := time.Now().UTC()
+
 	branch := in.DefaultBranch
 	if branch == "" {
 		branch = "main"
 	}
+
 	const q = `
 		INSERT INTO projects (
 			organization_id, name, github_repository_id, github_installation_id,
@@ -43,6 +45,7 @@ func (s *Store) CreateProject(ctx context.Context, in CreateProjectInput) (model
 			default_branch, github_full_name, github_access_status, created_by_user_id,
 			created_at, updated_at
 	`
+
 	project, err := scanProject(s.pool.QueryRow(
 		ctx, q,
 		in.OrganizationID, in.Name, in.GitHubRepositoryID, in.GitHubInstallationID,
@@ -52,8 +55,10 @@ func (s *Store) CreateProject(ctx context.Context, in CreateProjectInput) (model
 		if isUniqueViolation(err) {
 			return models.Project{}, ErrProjectRepoExists
 		}
+
 		return models.Project{}, fmt.Errorf("create project: %w", err)
 	}
+
 	return project, nil
 }
 
@@ -67,19 +72,24 @@ func (s *Store) ListProjects(ctx context.Context, organizationID string) ([]mode
 		WHERE organization_id = $1
 		ORDER BY created_at ASC
 	`
+
 	rows, err := s.pool.Query(ctx, q, organizationID)
 	if err != nil {
 		return nil, fmt.Errorf("list projects: %w", err)
 	}
 	defer rows.Close()
+
 	var out []models.Project
+
 	for rows.Next() {
 		project, err := scanProject(rows)
 		if err != nil {
 			return nil, err
 		}
+
 		out = append(out, project)
 	}
+
 	return out, rows.Err()
 }
 
@@ -92,18 +102,22 @@ func (s *Store) GetProject(ctx context.Context, id string) (models.Project, erro
 		FROM projects
 		WHERE id = $1
 	`
+
 	project, err := scanProject(s.pool.QueryRow(ctx, q, id))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return models.Project{}, ErrNotFound
 	}
+
 	if err != nil {
 		return models.Project{}, fmt.Errorf("get project: %w", err)
 	}
+
 	return project, nil
 }
 
 func scanProject(row scannable) (models.Project, error) {
 	var p models.Project
+
 	err := row.Scan(
 		&p.ID, &p.OrganizationID, &p.Name, &p.GitHubRepositoryID, &p.GitHubInstallationID,
 		&p.DefaultBranch, &p.GitHubFullName, &p.GitHubAccessStatus, &p.CreatedByUserID,
@@ -112,8 +126,10 @@ func scanProject(row scannable) (models.Project, error) {
 	if err != nil {
 		return models.Project{}, err
 	}
+
 	p.CreatedAt = p.CreatedAt.UTC()
 	p.UpdatedAt = p.UpdatedAt.UTC()
+
 	return p, nil
 }
 

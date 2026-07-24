@@ -75,9 +75,11 @@ func (i OrganizationInvite) IsPending(now time.Time) bool {
 	if i.AcceptedAt != nil || i.RevokedAt != nil {
 		return false
 	}
+
 	if i.ExpiresAt != nil && !i.ExpiresAt.After(now) {
 		return false
 	}
+
 	return true
 }
 

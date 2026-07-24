@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/ui/button.tsx'
 import {
   Combobox,
   ComboboxContent,
@@ -9,7 +9,7 @@ import {
   ComboboxInput,
   ComboboxItem,
   ComboboxList,
-} from '@/components/ui/combobox'
+} from '@/components/ui/combobox.tsx'
 import {
   Dialog,
   DialogContent,
@@ -17,9 +17,9 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+} from '@/components/ui/dialog.tsx'
+import { Input } from '@/components/ui/input.tsx'
+import { Label } from '@/components/ui/label.tsx'
 import {
   ApiError,
   addLaneParticipant,
@@ -30,12 +30,12 @@ import {
   laneActiveInviteQueryKey,
   laneParticipantsQueryKey,
   lanesQueryKey,
+  type MeUser,
   organizationMembersQueryKey,
   regenerateLaneInvite,
   removeLaneParticipant,
   revokeActiveLaneInvite,
-  type MeUser,
-} from '@/lib/api'
+} from '@/lib/api.ts'
 
 type Props = {
   laneId: string
@@ -143,8 +143,9 @@ export function LaneMembersDialog({
     },
   })
 
-  const activeInvite =
-    activeInviteQuery.isSuccess ? activeInviteQuery.data : null
+  const activeInvite = activeInviteQuery.isSuccess
+    ? activeInviteQuery.data
+    : null
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -179,9 +180,7 @@ export function LaneMembersDialog({
                       size="sm"
                       variant="ghost"
                       disabled={removeMutation.isPending}
-                      onClick={() =>
-                        removeMutation.mutate(participant.user_id)
-                      }
+                      onClick={() => removeMutation.mutate(participant.user_id)}
                     >
                       Remove
                     </Button>
@@ -203,10 +202,7 @@ export function LaneMembersDialog({
               itemToStringValue={(member) => member.id}
               isItemEqualToValue={(a, b) => a.id === b.id}
             >
-              <ComboboxInput
-                placeholder="Select a member"
-                className="w-full"
-              />
+              <ComboboxInput placeholder="Select a member" className="w-full" />
               <ComboboxContent>
                 <ComboboxEmpty>No members to add</ComboboxEmpty>
                 <ComboboxList>
@@ -235,7 +231,7 @@ export function LaneMembersDialog({
             <h3 className="text-sm font-medium">Lane Invite link</h3>
             {activeInvite ? (
               <div className="space-y-2">
-                <Input readOnly value={activeInvite.accept_url} />
+                <Input readOnly={true} value={activeInvite.accept_url} />
                 <div className="flex flex-wrap gap-2">
                   <Button
                     type="button"
@@ -256,6 +252,7 @@ export function LaneMembersDialog({
                     disabled={regenerateInviteMutation.isPending}
                     onClick={() => {
                       if (
+                        // biome-ignore lint/suspicious/noAlert: intentional destructive confirm until shared dialog exists
                         !window.confirm(
                           'Regenerate the invite link? The old link stops working.',
                         )

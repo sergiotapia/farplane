@@ -41,6 +41,7 @@ func TestHealthLiveness(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode body: %v", err)
 	}
+
 	if body["status"] != "ok" {
 		t.Fatalf("status = %q, want %q", body["status"], "ok")
 	}
@@ -61,9 +62,11 @@ func TestReadyWithoutPool(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode body: %v", err)
 	}
+
 	if body["status"] != "unavailable" {
 		t.Fatalf("status = %q, want %q", body["status"], "unavailable")
 	}
+
 	if body["database"] != "missing" {
 		t.Fatalf("database = %q, want %q", body["database"], "missing")
 	}
@@ -100,9 +103,11 @@ func TestReadyWithPool(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode body: %v", err)
 	}
+
 	if body["status"] != "ok" {
 		t.Fatalf("status = %q, want %q", body["status"], "ok")
 	}
+
 	if body["database"] != "up" {
 		t.Fatalf("database = %q, want %q", body["database"], "up")
 	}
@@ -123,6 +128,7 @@ func TestHello(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode body: %v", err)
 	}
+
 	if body["message"] != "farplane" {
 		t.Fatalf("message = %q, want %q", body["message"], "farplane")
 	}
@@ -135,6 +141,7 @@ func TestCORSAllowsSPAOrigin(t *testing.T) {
 		req := httptest.NewRequest(http.MethodOptions, "/api/v1/hello", nil)
 		req.Header.Set("Origin", origin)
 		req.Header.Set("Access-Control-Request-Method", "GET")
+
 		rec := httptest.NewRecorder()
 		httpapi.New(nil, testConfig()).ServeHTTP(rec, req)
 

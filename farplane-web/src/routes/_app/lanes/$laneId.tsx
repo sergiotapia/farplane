@@ -6,11 +6,11 @@ import {
 } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 
-import { LaneAgentStrip } from '@/components/lanes/lane-agent-strip'
-import { LaneConversationPanel } from '@/components/lanes/lane-conversation-panel'
-import { LaneMembersDialog } from '@/components/lanes/lane-members-dialog'
-import { LanePreviewPanel } from '@/components/lanes/lane-preview-panel'
-import { Button } from '@/components/ui/button'
+import { LaneAgentStrip } from '@/components/lanes/lane-agent-strip.tsx'
+import { LaneConversationPanel } from '@/components/lanes/lane-conversation-panel.tsx'
+import { LaneMembersDialog } from '@/components/lanes/lane-members-dialog.tsx'
+import { LanePreviewPanel } from '@/components/lanes/lane-preview-panel.tsx'
+import { Button } from '@/components/ui/button.tsx'
 import {
   Dialog,
   DialogContent,
@@ -18,16 +18,16 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
+} from '@/components/ui/dialog.tsx'
 import {
   ApiError,
   destroyLane,
   getLane,
   laneQueryKey,
-  laneWebSocketURL,
   lanesQueryKey,
+  laneWebSocketURL,
   leaveLane,
-} from '@/lib/api'
+} from '@/lib/api.ts'
 
 type LaneSearch = {
   panel?: 'members'
@@ -151,20 +151,7 @@ function LaneDetailPage() {
           >
             Members
           </Button>
-          {!isOwner ? (
-            <Button
-              type="button"
-              variant="outline"
-              className="h-9 px-3.5"
-              disabled={leaveMutation.isPending}
-              onClick={() => {
-                if (!window.confirm('Leave this Lane?')) return
-                leaveMutation.mutate()
-              }}
-            >
-              {leaveMutation.isPending ? 'Leaving…' : 'Leave'}
-            </Button>
-          ) : (
+          {isOwner ? (
             <Button
               type="button"
               variant="destructive"
@@ -176,6 +163,20 @@ function LaneDetailPage() {
               }}
             >
               Destroy Lane
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              variant="outline"
+              className="h-9 px-3.5"
+              disabled={leaveMutation.isPending}
+              onClick={() => {
+                // biome-ignore lint/suspicious/noAlert: intentional destructive confirm until shared dialog exists
+                if (!window.confirm('Leave this Lane?')) return
+                leaveMutation.mutate()
+              }}
+            >
+              {leaveMutation.isPending ? 'Leaving…' : 'Leave'}
             </Button>
           )}
         </div>
@@ -194,9 +195,7 @@ function LaneDetailPage() {
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 px-6 pb-6 lg:grid-cols-[minmax(320px,420px)_minmax(0,1fr)]">
         <LaneConversationPanel
           turnRunning={turnRunning}
-          canInterrupt={
-            !!wsReady && wsReady.readyState === WebSocket.OPEN
-          }
+          canInterrupt={!!wsReady && wsReady.readyState === WebSocket.OPEN}
           onInterrupt={() => {
             // Keep turnRunning until the hub status frame confirms idle.
             wsReady?.send(JSON.stringify({ type: 'interrupt' }))

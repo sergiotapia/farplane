@@ -5,14 +5,14 @@ import {
   MOCK_PREVIEW_PATH,
   MOCK_PREVIEW_URL,
   MockPreviewEmbed,
-} from '@/components/lanes/mock-preview-embed'
-import { Button } from '@/components/ui/button'
+} from '@/components/lanes/mock-preview-embed.tsx'
+import { Button } from '@/components/ui/button.tsx'
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
+} from '@/components/ui/dialog.tsx'
 
 export function LanePreviewPanel() {
   const [expandOpen, setExpandOpen] = useState(false)
@@ -86,7 +86,7 @@ export function LanePreviewPanel() {
       <Dialog open={expandOpen} onOpenChange={setExpandOpen}>
         <DialogContent
           className="flex h-[min(820px,90vh)] w-[min(1120px,95vw)] max-w-none flex-col gap-0 overflow-hidden p-0 sm:max-w-none"
-          showCloseButton
+          showCloseButton={true}
         >
           <DialogHeader className="flex h-14 shrink-0 flex-row items-center gap-3 space-y-0 border-b border-border px-4 pr-12">
             <DialogTitle className="shrink-0 text-sm font-semibold">

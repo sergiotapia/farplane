@@ -86,3 +86,50 @@ make web       # http://localhost:3000
 
 Open `http://localhost:3000`. The SPA talks to the API at
 `http://localhost:8080`.
+
+## Definition of Done
+
+Before you claim work is done, the local quality pipeline must exit 0:
+
+```bash
+make gauntlet
+```
+
+`make gauntlet` is the agent Definition of Done. It runs `make check`
+(format → lint → types → tests → cover → security → arch), then
+mutation tests, godog acceptance, and Playwright e2e. Thresholds are
+strict (fail loud). Patch coverage and mutation tooling use
+`GIT_BASE` / `CHANGED_SINCE` (default: `master`).
+
+Prereqs:
+
+1. Postgres + migrations: `make db-create`, `make migrate-up`,
+   `make migrate-up-test`
+2. API running: `make backend` (http://localhost:8080)
+3. Chromium once: `cd farplane-web && bunx playwright install chromium`
+
+For a faster inner loop while iterating, `make check` is allowed; the
+Cursor `stop` hook still requires a green `make gauntlet` before the
+turn can finish without a follow-up.
+
+See `farplane-web/QUALITY.md` for web gate details.
+
+### Cursor stop hook (deterministic)
+
+Project hook: `.cursor/hooks.json` → `.cursor/hooks/gauntlet-stop.sh`
+on the `stop` event.
+
+When an agent turn completes with a dirty working tree, the hook runs
+`make gauntlet`. On failure it returns `followup_message` so Cursor
+auto-continues (up to `loop_limit`: 8). On success it returns `{}`.
+
+Skips (no follow-up):
+
+- agent status is not `completed` (aborted / error)
+- clean working tree
+- fingerprint already marked green (`.cursor/.gauntlet-green`)
+- one-shot escape: `touch .cursor/skip-gauntlet` (file is removed)
+
+Keep the API up while agents work so e2e in the gauntlet can pass.
+Reload hooks via Cursor Hooks settings if the hook does not load after
+pull.

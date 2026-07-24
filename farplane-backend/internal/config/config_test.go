@@ -7,13 +7,14 @@ import (
 
 func TestIsPublicAPIBaseURL(t *testing.T) {
 	t.Parallel()
+
 	cases := map[string]bool{
-		"":                            false,
-		"http://localhost:8080":       false,
-		"https://127.0.0.1":           false,
-		"https://localhost:8080":      false,
-		"http://farplane.example.com": false, // cleartext rejected
-		"https://ae7f.ngrok-free.app": true,
+		"":                             false,
+		"http://localhost:8080":        false,
+		"https://127.0.0.1":            false,
+		"https://localhost:8080":       false,
+		"http://farplane.example.com":  false, // cleartext rejected
+		"https://ae7f.ngrok-free.app":  true,
 		"https://farplane.example.com": true,
 	}
 	for raw, want := range cases {
@@ -137,6 +138,7 @@ func TestLoad(t *testing.T) {
 			t.Setenv("GOOGLE_CLIENT_SECRET", "")
 			t.Setenv("GOOGLE_REDIRECT_URL", "")
 			t.Setenv("APP_BASE_URL", "")
+
 			for k, v := range tt.env {
 				t.Setenv(k, v)
 			}
@@ -146,8 +148,10 @@ func TestLoad(t *testing.T) {
 				if err == nil {
 					t.Fatal("expected error, got nil")
 				}
+
 				return
 			}
+
 			if err != nil {
 				t.Fatalf("Load: %v", err)
 			}
@@ -155,47 +159,61 @@ func TestLoad(t *testing.T) {
 			if cfg.Addr != tt.wantAddr {
 				t.Fatalf("Addr = %q, want %q", cfg.Addr, tt.wantAddr)
 			}
+
 			if cfg.DatabaseURL != tt.wantDB {
 				t.Fatalf("DatabaseURL = %q, want %q", cfg.DatabaseURL, tt.wantDB)
 			}
+
 			if cfg.AppEnv != tt.wantEnv {
 				t.Fatalf("AppEnv = %q, want %q", cfg.AppEnv, tt.wantEnv)
 			}
+
 			if cfg.GinMode != tt.wantGin {
 				t.Fatalf("GinMode = %q, want %q", cfg.GinMode, tt.wantGin)
 			}
+
 			if cfg.ReadHeaderTimeout != 5*time.Second {
 				t.Fatalf("ReadHeaderTimeout = %v, want 5s", cfg.ReadHeaderTimeout)
 			}
+
 			if cfg.ReadTimeout != 15*time.Second {
 				t.Fatalf("ReadTimeout = %v, want 15s", cfg.ReadTimeout)
 			}
+
 			if cfg.WriteTimeout != 0 {
 				t.Fatalf("WriteTimeout = %v, want 0 (disabled for WebSockets)", cfg.WriteTimeout)
 			}
+
 			if cfg.IdleTimeout != 60*time.Second {
 				t.Fatalf("IdleTimeout = %v, want 60s", cfg.IdleTimeout)
 			}
+
 			if cfg.ShutdownTimeout != 10*time.Second {
 				t.Fatalf("ShutdownTimeout = %v, want 10s", cfg.ShutdownTimeout)
 			}
+
 			if cfg.SessionSecret == "" {
 				t.Fatal("SessionSecret is empty")
 			}
+
 			if tt.name == "google oauth and session cookie env" {
 				if !cfg.GoogleOAuthConfigured() {
 					t.Fatal("expected GoogleOAuthConfigured true")
 				}
+
 				if cfg.AppBaseURL != "http://localhost:3000" {
 					t.Fatalf("AppBaseURL = %q, want trimmed base", cfg.AppBaseURL)
 				}
+
 				if cfg.SessionCookieSecure {
 					t.Fatal("SessionCookieSecure = true, want false")
 				}
+
 				if cfg.SessionSecret != "custom-secret" {
 					t.Fatalf("SessionSecret = %q", cfg.SessionSecret)
 				}
 			}
+
 			if tt.name == "production with DATABASE_URL and SESSION_SECRET" {
 				if !cfg.SessionCookieSecure {
 					t.Fatal("SessionCookieSecure = false, want true for production default")

@@ -131,3 +131,7 @@ postgres-data/
 .tmp/
 
 plan.md
+# Cursor stop-hook runtime
+.cursor/.gauntlet-green
+.cursor/.gauntlet-last.log
+.cursor/skip-gauntlet

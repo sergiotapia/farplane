@@ -32,9 +32,10 @@ type GitHubApp interface {
 func (a *api) handleGitHubInstallStart(c *gin.Context) {
 	gh := a.githubApp()
 	if gh == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "github app is not configured"})
+		c.JSON(http.StatusServiceUnavailable, gin.H{jsonKeyError: "github app is not configured"})
 		return
 	}
+
 	principal, ok := a.requirePrincipal(c)
 	if !ok {
 		return
@@ -42,9 +43,10 @@ func (a *api) handleGitHubInstallStart(c *gin.Context) {
 
 	nonce, err := auth.NewOAuthNonce()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to start github install"})
+		c.JSON(http.StatusInternalServerError, gin.H{jsonKeyError: "failed to start github install"})
 		return
 	}
+
 	state, err := auth.SignGitHubInstallState(a.cfg.SessionSecret, auth.GitHubInstallState{
 		OrganizationID: principal.Organization.ID,
 		UserID:         principal.User.ID,
@@ -52,13 +54,14 @@ func (a *api) handleGitHubInstallStart(c *gin.Context) {
 		ExpiresAtUnix:  time.Now().UTC().Add(githubInstallStateTTL).Unix(),
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to start github install"})
+		c.JSON(http.StatusInternalServerError, gin.H{jsonKeyError: "failed to start github install"})
 		return
 	}
+
 	c.JSON(http.StatusOK, gin.H{"url": gh.InstallURL(state)})
 }
 
-func (a *api) handleGitHubCallback(c *gin.Context) {
+func (a *api) handleGitHubCallback(c *gin.Context) { //nolint:gocyclo,funlen // multi-branch orchestration; keep under threshold when rewriting
 	gh := a.githubApp()
 	if gh == nil || a.store == nil {
 		a.redirectGitHubError(c, "github_app_not_configured")
@@ -71,6 +74,7 @@ func (a *api) handleGitHubCallback(c *gin.Context) {
 	}
 
 	stateRaw := trimNonEmpty(c.Query("state"))
+
 	state, err := auth.ParseGitHubInstallState(a.cfg.SessionSecret, stateRaw, time.Now().UTC())
 	if err != nil {
 		a.redirectGitHubError(c, "invalid_state")
@@ -82,6 +86,7 @@ func (a *api) handleGitHubCallback(c *gin.Context) {
 		a.redirectGitHubError(c, "install_save_failed")
 		return
 	}
+
 	if principal.Organization.ID != state.OrganizationID {
 		a.redirectGitHubError(c, "install_forbidden")
 		return
@@ -103,6 +108,7 @@ func (a *api) handleGitHubCallback(c *gin.Context) {
 	if selection != models.GitHubRepositorySelectionAll && selection != models.GitHubRepositorySelectionSelected {
 		selection = models.GitHubRepositorySelectionSelected
 	}
+
 	accountType := ghInst.Account.Type
 	if accountType != models.GitHubAccountTypeUser && accountType != models.GitHubAccountTypeOrganization {
 		a.redirectGitHubError(c, "installation_lookup_failed")
@@ -110,6 +116,7 @@ func (a *api) handleGitHubCallback(c *gin.Context) {
 	}
 
 	var suspendedAt *time.Time
+
 	if ghInst.SuspendedAt != nil && *ghInst.SuspendedAt != "" {
 		if t, parseErr := time.Parse(time.RFC3339, *ghInst.SuspendedAt); parseErr == nil {
 			utc := t.UTC()
@@ -132,7 +139,9 @@ func (a *api) handleGitHubCallback(c *gin.Context) {
 			a.redirectGitHubError(c, "installation_owned")
 			return
 		}
+
 		a.redirectGitHubError(c, "install_save_failed")
+
 		return
 	}
 
@@ -149,16 +158,19 @@ func (a *api) handleListGitHubInstallations(c *gin.Context) {
 	if !ok {
 		return
 	}
+
 	configured := a.githubApp() != nil
 	if a.store == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "database unavailable"})
+		c.JSON(http.StatusServiceUnavailable, gin.H{jsonKeyError: errDatabaseUnavailable})
 		return
 	}
+
 	installations, err := a.store.ListGitHubInstallations(c.Request.Context(), principal.Organization.ID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list installations"})
+		c.JSON(http.StatusInternalServerError, gin.H{jsonKeyError: "failed to list installations"})
 		return
 	}
+
 	items := make([]gin.H, 0, len(installations))
 	for _, inst := range installations {
 		items = append(items, gin.H{
@@ -170,9 +182,10 @@ func (a *api) handleListGitHubInstallations(c *gin.Context) {
 			"repository_selection":   inst.RepositorySelection,
 			"connected_by_user_id":   inst.ConnectedByUserID,
 			"suspended":              inst.SuspendedAt != nil,
-			"created_at":             inst.CreatedAt,
+			jsonKeyCreatedAt:         inst.CreatedAt,
 		})
 	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"configured":          configured,
 		"api_base_url":        a.apiBaseURL(),
@@ -186,26 +199,31 @@ func (a *api) handleDisconnectGitHubInstallation(c *gin.Context) {
 	if !ok {
 		return
 	}
+
 	inst, err := a.store.GetGitHubInstallationByID(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		writeStoreError(c, err)
 		return
 	}
+
 	if inst.OrganizationID != principal.Organization.ID || inst.UninstalledAt != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		c.JSON(http.StatusNotFound, gin.H{jsonKeyError: errNotFound})
 		return
 	}
+
 	canDisconnect := inst.ConnectedByUserID == principal.User.ID ||
 		principal.Role == models.OrganizationRoleOwner ||
 		principal.Role == models.OrganizationRoleAdmin
 	if !canDisconnect {
-		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		c.JSON(http.StatusForbidden, gin.H{jsonKeyError: "forbidden"})
 		return
 	}
+
 	if err := a.store.MarkGitHubInstallationUninstalled(c.Request.Context(), inst.GitHubInstallationID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to disconnect"})
+		c.JSON(http.StatusInternalServerError, gin.H{jsonKeyError: "failed to disconnect"})
 		return
 	}
+
 	c.Status(http.StatusNoContent)
 }
 
@@ -214,26 +232,30 @@ func (a *api) handleListGitHubRepositories(c *gin.Context) {
 	if !ok {
 		return
 	}
+
 	refresh := c.Query("refresh") == "1" || strings.EqualFold(c.Query("refresh"), "true")
 	if refresh && a.githubApp() != nil {
 		installations, err := a.store.ListGitHubInstallations(c.Request.Context(), principal.Organization.ID)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list installations"})
+			c.JSON(http.StatusInternalServerError, gin.H{jsonKeyError: "failed to list installations"})
 			return
 		}
+
 		for _, inst := range installations {
 			if inst.SuspendedAt != nil {
 				continue
 			}
+
 			_ = a.syncInstallationRepositories(c.Request.Context(), inst)
 		}
 	}
 
 	repos, err := a.store.ListPickableGitHubRepositories(c.Request.Context(), principal.Organization.ID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list repositories"})
+		c.JSON(http.StatusInternalServerError, gin.H{jsonKeyError: "failed to list repositories"})
 		return
 	}
+
 	items := make([]gin.H, 0, len(repos))
 	for _, repo := range repos {
 		items = append(items, gin.H{
@@ -247,33 +269,38 @@ func (a *api) handleListGitHubRepositories(c *gin.Context) {
 			"github_account_login":   repo.GitHubAccountLogin,
 		})
 	}
+
 	c.JSON(http.StatusOK, gin.H{"repositories": items})
 }
 
-func (a *api) handleGitHubWebhook(c *gin.Context) {
+func (a *api) handleGitHubWebhook(c *gin.Context) { //nolint:gocyclo,funlen // multi-branch orchestration; keep under threshold when rewriting
 	gh := a.githubApp()
 	if gh == nil || a.store == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "github app is not configured"})
+		c.JSON(http.StatusServiceUnavailable, gin.H{jsonKeyError: "github app is not configured"})
 		return
 	}
+
 	body, err := io.ReadAll(io.LimitReader(c.Request.Body, 2<<20))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid body"})
+		c.JSON(http.StatusBadRequest, gin.H{jsonKeyError: "invalid body"})
 		return
 	}
+
 	if !gh.VerifyWebhookSignature(body, c.GetHeader("X-Hub-Signature-256")) {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid signature"})
+		c.JSON(http.StatusUnauthorized, gin.H{jsonKeyError: "invalid signature"})
 		return
 	}
 
 	event := c.GetHeader("X-GitHub-Event")
+
 	payload, err := githubapp.ParseWebhookInstallation(body)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
+		c.JSON(http.StatusBadRequest, gin.H{jsonKeyError: "invalid payload"})
 		return
 	}
 
 	var opErr error
+
 	switch event {
 	case "installation":
 		switch payload.Action {
@@ -305,29 +332,36 @@ func (a *api) handleGitHubWebhook(c *gin.Context) {
 				c.Status(http.StatusNoContent)
 				return
 			}
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "lookup failed"})
+
+			c.JSON(http.StatusInternalServerError, gin.H{jsonKeyError: "lookup failed"})
+
 			return
 		}
+
 		if inst.UninstalledAt != nil {
 			c.Status(http.StatusNoContent)
 			return
 		}
+
 		if len(payload.RepositoriesRemoved) > 0 {
 			ids := make([]int64, 0, len(payload.RepositoriesRemoved))
 			for _, repo := range payload.RepositoriesRemoved {
 				ids = append(ids, repo.ID)
 			}
+
 			opErr = a.store.SoftRemoveGitHubRepositories(c.Request.Context(), inst.ID, ids)
 		}
+
 		if opErr == nil && (len(payload.RepositoriesAdded) > 0 || payload.Action == "added") {
 			opErr = a.syncInstallationRepositories(c.Request.Context(), inst)
 		}
 	}
 
 	if opErr != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "webhook processing failed"})
+		c.JSON(http.StatusInternalServerError, gin.H{jsonKeyError: "webhook processing failed"})
 		return
 	}
+
 	c.Status(http.StatusNoContent)
 }
 
@@ -336,14 +370,17 @@ func (a *api) syncInstallationRepositories(ctx context.Context, inst models.GitH
 	if gh == nil {
 		return errors.New("github app is not configured")
 	}
+
 	token, _, err := gh.CreateInstallationToken(ctx, inst.GitHubInstallationID)
 	if err != nil {
 		return err
 	}
+
 	repos, err := gh.ListInstallationRepositories(ctx, token)
 	if err != nil {
 		return err
 	}
+
 	sync := make([]store.GitHubRepoSync, 0, len(repos))
 	for _, repo := range repos {
 		sync = append(sync, store.GitHubRepoSync{
@@ -354,28 +391,34 @@ func (a *api) syncInstallationRepositories(ctx context.Context, inst models.GitH
 			HTMLURL:            repo.HTMLURL,
 		})
 	}
+
 	return a.store.ReplaceGitHubRepositories(ctx, inst.ID, sync)
 }
 
 func (a *api) requirePrincipal(c *gin.Context) (store.UserWithOrg, bool) {
 	userID, ok := currentUserID(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "authentication required"})
+		c.JSON(http.StatusUnauthorized, gin.H{jsonKeyError: errAuthRequired})
 		return store.UserWithOrg{}, false
 	}
+
 	if a.store == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "database unavailable"})
+		c.JSON(http.StatusServiceUnavailable, gin.H{jsonKeyError: errDatabaseUnavailable})
 		return store.UserWithOrg{}, false
 	}
+
 	principal, err := a.store.GetUserWithOrgByUserID(c.Request.Context(), userID)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "authentication required"})
+			c.JSON(http.StatusUnauthorized, gin.H{jsonKeyError: errAuthRequired})
 			return store.UserWithOrg{}, false
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load user"})
+
+		c.JSON(http.StatusInternalServerError, gin.H{jsonKeyError: "failed to load user"})
+
 		return store.UserWithOrg{}, false
 	}
+
 	return principal, true
 }
 

@@ -1,20 +1,24 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute, useNavigate, useRouteContext } from '@tanstack/react-router'
-import { useState, type FormEvent } from 'react'
+import {
+  createFileRoute,
+  useNavigate,
+  useRouteContext,
+} from '@tanstack/react-router'
+import { type FormEvent, useState } from 'react'
 
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { Button } from '@/components/ui/button.tsx'
+import { Input } from '@/components/ui/input.tsx'
+import { Label } from '@/components/ui/label.tsx'
 import {
   ApiError,
   getSetupStatus,
   meQueryKey,
   postSetup,
+  type SetupStatus,
   setupStatusQueryKey,
   startGoogleSetup,
-  type SetupStatus,
-} from '@/lib/api'
-import { messageForOAuthError } from '@/lib/oauth-errors'
+} from '@/lib/api.ts'
+import { messageForOAuthError } from '@/lib/oauth-errors.ts'
 
 type SetupSearch = {
   oauth_error?: string
@@ -48,11 +52,14 @@ function SetupPage() {
   const setupMutation = useMutation({
     mutationFn: postSetup,
     onSuccess: async (data) => {
-      queryClient.setQueryData<SetupStatus>(setupStatusQueryKey, (previous) => ({
-        needs_setup: false,
-        google_oauth_configured: previous?.google_oauth_configured ?? false,
-        setup_token_required: previous?.setup_token_required ?? false,
-      }))
+      queryClient.setQueryData<SetupStatus>(
+        setupStatusQueryKey,
+        (previous) => ({
+          needs_setup: false,
+          google_oauth_configured: previous?.google_oauth_configured ?? false,
+          setup_token_required: previous?.setup_token_required ?? false,
+        }),
+      )
       queryClient.setQueryData(meQueryKey, data)
       await navigate({ to: '/' })
     },
@@ -82,7 +89,7 @@ function SetupPage() {
     const trimmedDisplayName = displayName.trim()
     const trimmedToken = setupToken.trim()
 
-    if (!trimmedOrg || !trimmedEmail || !trimmedDisplayName || !password) {
+    if (!(trimmedOrg && trimmedEmail && trimmedDisplayName && password)) {
       setFormError('Fill in all fields to continue.')
       return
     }
@@ -122,7 +129,9 @@ function SetupPage() {
           <p className="text-muted-foreground text-sm font-medium tracking-wide uppercase">
             Farplane
           </p>
-          <h1 className="text-3xl font-bold tracking-tight">First-time setup</h1>
+          <h1 className="text-3xl font-bold tracking-tight">
+            First-time setup
+          </h1>
           <p className="text-muted-foreground text-sm">
             Create the organization and owner account for this install. After
             this step, new users join by invite only.
@@ -138,7 +147,7 @@ function SetupPage() {
               autoComplete="organization"
               value={organizationName}
               onChange={(event) => setOrganizationName(event.target.value)}
-              required
+              required={true}
             />
           </div>
 
@@ -150,7 +159,7 @@ function SetupPage() {
               autoComplete="name"
               value={displayName}
               onChange={(event) => setDisplayName(event.target.value)}
-              required
+              required={true}
             />
           </div>
 
@@ -163,7 +172,7 @@ function SetupPage() {
               autoComplete="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              required
+              required={true}
             />
           </div>
 
@@ -176,7 +185,7 @@ function SetupPage() {
               autoComplete="new-password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              required
+              required={true}
               minLength={8}
             />
           </div>
@@ -191,7 +200,7 @@ function SetupPage() {
                 autoComplete="off"
                 value={setupToken}
                 onChange={(event) => setSetupToken(event.target.value)}
-                required
+                required={true}
               />
               <p className="text-muted-foreground text-xs">
                 Set <code className="text-foreground">SETUP_TOKEN</code> on the
@@ -223,7 +232,7 @@ function SetupPage() {
             <div className="bg-border h-px flex-1" />
           </div>
 
-          {!googleConfigured ? (
+          {googleConfigured ? null : (
             <p
               className="bg-muted text-muted-foreground rounded-lg px-3 py-2 text-sm"
               role="status"
@@ -233,7 +242,7 @@ function SetupPage() {
               <code className="text-foreground">GOOGLE_CLIENT_SECRET</code> on
               the API, then restart it.
             </p>
-          ) : null}
+          )}
 
           <Button
             type="button"

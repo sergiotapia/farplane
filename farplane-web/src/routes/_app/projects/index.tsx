@@ -1,9 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import { Lock } from 'lucide-react'
 import { useState } from 'react'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/ui/button.tsx'
 import {
   Combobox,
   ComboboxContent,
@@ -11,17 +11,17 @@ import {
   ComboboxInput,
   ComboboxItem,
   ComboboxList,
-} from '@/components/ui/combobox'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+} from '@/components/ui/combobox.tsx'
+import { Input } from '@/components/ui/input.tsx'
+import { Label } from '@/components/ui/label.tsx'
 import {
   createProject,
+  type GitHubRepository,
   getGitHubRepositories,
   getProjects,
   githubRepositoriesQueryKey,
   projectsQueryKey,
-  type GitHubRepository,
-} from '@/lib/api'
+} from '@/lib/api.ts'
 
 export const Route = createFileRoute('/_app/projects/')({
   component: ProjectsPage,
@@ -104,7 +104,7 @@ function ProjectsPage() {
         className="space-y-4"
         onSubmit={(event) => {
           event.preventDefault()
-          if (!selectedRepository || !name.trim() || pickerDisabled) return
+          if (!(selectedRepository && name.trim()) || pickerDisabled) return
           createMutation.mutate({
             name: name.trim(),
             github_repository_id: selectedRepository.github_repository_id,
@@ -125,9 +125,7 @@ function ProjectsPage() {
               }
             }}
             itemToStringLabel={(repo) => repo.full_name}
-            itemToStringValue={(repo) =>
-              String(repo.github_repository_id)
-            }
+            itemToStringValue={(repo) => String(repo.github_repository_id)}
             isItemEqualToValue={(a, b) =>
               a.github_repository_id === b.github_repository_id
             }
@@ -136,22 +134,17 @@ function ProjectsPage() {
             <ComboboxInput
               id="project-repo"
               placeholder={
-                pickerReady
-                  ? 'Search repositories…'
-                  : 'Loading repositories…'
+                pickerReady ? 'Search repositories…' : 'Loading repositories…'
               }
               className="w-full"
-              showClear
+              showClear={true}
               disabled={pickerDisabled}
             />
             <ComboboxContent>
               <ComboboxEmpty>No repositories found.</ComboboxEmpty>
               <ComboboxList>
                 {(repo) => (
-                  <ComboboxItem
-                    key={repo.github_repository_id}
-                    value={repo}
-                  >
+                  <ComboboxItem key={repo.github_repository_id} value={repo}>
                     {repo.private ? (
                       <Lock
                         className="text-muted-foreground"
@@ -189,7 +182,7 @@ function ProjectsPage() {
             value={name}
             onChange={(event) => setName(event.target.value)}
             placeholder="Rails app"
-            required
+            required={true}
           />
         </div>
         {createMutation.isError ? (

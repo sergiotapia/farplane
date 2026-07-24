@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"embed"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -25,16 +26,19 @@ const (
 // openSQL opens a database/sql handle for goose (pgx stdlib driver).
 func openSQL(ctx context.Context, databaseURL string) (*sql.DB, error) {
 	if databaseURL == "" {
-		return nil, fmt.Errorf("database URL is empty")
+		return nil, errors.New("database URL is empty")
 	}
+
 	db, err := sql.Open("pgx", databaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("open sql db: %w", err)
 	}
+
 	if err := db.PingContext(ctx); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("ping sql db: %w", err)
 	}
+
 	return db, nil
 }
 
@@ -68,6 +72,7 @@ func MigrateUp(databaseURL string) error {
 		if _, err := p.Up(ctx); err != nil {
 			return fmt.Errorf("migrate up: %w", err)
 		}
+
 		return nil
 	})
 }
@@ -78,6 +83,7 @@ func MigrateDown(databaseURL string) error {
 		if _, err := p.Down(ctx); err != nil {
 			return fmt.Errorf("migrate down: %w", err)
 		}
+
 		return nil
 	})
 }
@@ -88,6 +94,7 @@ func MigrateReset(databaseURL string) error {
 		if _, err := p.DownTo(ctx, 0); err != nil {
 			return fmt.Errorf("migrate reset: %w", err)
 		}
+
 		return nil
 	})
 }
@@ -99,19 +106,24 @@ func MigrateStatus(databaseURL string) error {
 		if err != nil {
 			return fmt.Errorf("migrate status: %w", err)
 		}
+
 		fmt.Println("    Applied At                  Migration")
 		fmt.Println("    =======================================")
+
 		for _, s := range statuses {
 			applied := "Pending"
 			if !s.AppliedAt.IsZero() {
 				applied = s.AppliedAt.Format(time.ANSIC)
 			}
+
 			name := ""
 			if s.Source != nil {
 				name = s.Source.Path
 			}
+
 			fmt.Printf("    %-28s -- %s\n", applied, name)
 		}
+
 		return nil
 	})
 }
@@ -123,7 +135,9 @@ func MigrateVersion(databaseURL string) error {
 		if err != nil {
 			return fmt.Errorf("migrate version: %w", err)
 		}
+
 		fmt.Printf("goose: version %d\n", version)
+
 		return nil
 	})
 }
@@ -132,17 +146,21 @@ func MigrateVersion(databaseURL string) error {
 // dir should be the on-disk migrations path (for example farplane-backend/internal/db/migrations).
 func CreateMigration(dir, name string) error {
 	if name == "" {
-		return fmt.Errorf("migration name is required")
+		return errors.New("migration name is required")
 	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return fmt.Errorf("create migrations dir: %w", err)
 	}
+
 	abs, err := filepath.Abs(dir)
 	if err != nil {
 		return fmt.Errorf("resolve migrations dir: %w", err)
 	}
+
 	if err := goose.Create(nil, abs, name, "sql"); err != nil {
 		return fmt.Errorf("create migration: %w", err)
 	}
+
 	return nil
 }

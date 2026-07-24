@@ -4,7 +4,7 @@ import { githubDark, githubLight } from '@uiw/codemirror-theme-github'
 import CodeMirror from '@uiw/react-codemirror'
 import { useEffect, useState } from 'react'
 
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/utils.ts'
 
 const dockerfileLanguage = StreamLanguage.define(dockerFile)
 

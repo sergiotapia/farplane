@@ -1,10 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import { Check, Hammer, Save, Sparkles } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
-import { DockerfileEditor } from '@/components/dockerfile-editor'
-import { Button } from '@/components/ui/button'
+import { DockerfileEditor } from '@/components/dockerfile-editor.tsx'
+import { Button } from '@/components/ui/button.tsx'
 import {
   ApiError,
   generateProjectEnvironment,
@@ -14,17 +14,21 @@ import {
   projectsQueryKey,
   upsertProjectEnvironment,
   validateProjectEnvironment,
-} from '@/lib/api'
+} from '@/lib/api.ts'
 
 export const Route = createFileRoute('/_app/projects/$projectId')({
   component: ProjectEnvironmentPage,
 })
 
 function lintLogFromError(error: unknown): string | null {
-  if (!(error instanceof ApiError) || !error.body || typeof error.body !== 'object') {
+  if (
+    !(error instanceof ApiError && error.body) ||
+    typeof error.body !== 'object'
+  ) {
     return null
   }
-  const log = (error.body as { last_validation_log?: unknown }).last_validation_log
+  const log = (error.body as { last_validation_log?: unknown })
+    .last_validation_log
   return typeof log === 'string' && log.trim() ? log : null
 }
 
@@ -99,8 +103,13 @@ function ProjectEnvironmentPage() {
       })
     },
     onError: (error) => {
-      if (error instanceof ApiError && error.body && typeof error.body === 'object') {
-        const pe = (error.body as { project_environment?: unknown }).project_environment
+      if (
+        error instanceof ApiError &&
+        error.body &&
+        typeof error.body === 'object'
+      ) {
+        const pe = (error.body as { project_environment?: unknown })
+          .project_environment
         if (pe && typeof pe === 'object') {
           queryClient.setQueryData(projectEnvironmentQueryKey(projectId), pe)
         }
@@ -151,7 +160,9 @@ function ProjectEnvironmentPage() {
                 </span>
               </>
             ) : (
-              <span className="text-foreground font-medium">Not configured</span>
+              <span className="text-foreground font-medium">
+                Not configured
+              </span>
             )}
           </span>
           <div className="ml-auto flex flex-wrap gap-2">
@@ -179,7 +190,9 @@ function ProjectEnvironmentPage() {
             </Button>
             <Button
               type="button"
-              disabled={!hasEnvironment || dirty || validateEnvMutation.isPending}
+              disabled={
+                !hasEnvironment || dirty || validateEnvMutation.isPending
+              }
               onClick={() => validateEnvMutation.mutate()}
             >
               {envValid ? (
@@ -193,10 +206,14 @@ function ProjectEnvironmentPage() {
         </div>
 
         {generateMutation.isError ? (
-          <p className="text-destructive text-sm">{generateMutation.error.message}</p>
+          <p className="text-destructive text-sm">
+            {generateMutation.error.message}
+          </p>
         ) : null}
         {saveEnvMutation.isError ? (
-          <p className="text-destructive text-sm">{saveEnvMutation.error.message}</p>
+          <p className="text-destructive text-sm">
+            {saveEnvMutation.error.message}
+          </p>
         ) : null}
         {validateEnvMutation.isError ? (
           <p className="text-destructive text-sm">

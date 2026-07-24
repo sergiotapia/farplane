@@ -24,57 +24,69 @@ func (a *api) handleListLaneMessages(c *gin.Context) {
 	if !ok {
 		return
 	}
+
 	lane, err := a.store.GetLane(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		writeStoreError(c, err)
 		return
 	}
+
 	if _, err := a.store.RequireActiveLaneParticipant(c.Request.Context(), lane.ID, principal.User.ID); err != nil {
 		writeStoreError(c, err)
 		return
 	}
+
 	msgs, err := a.store.ListLaneMessages(c.Request.Context(), lane.ID, 0, 200)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list messages"})
+		c.JSON(http.StatusInternalServerError, gin.H{jsonKeyError: "failed to list messages"})
 		return
 	}
+
 	out := make([]gin.H, 0, len(msgs))
 	for _, m := range msgs {
 		out = append(out, lanehub.MessageDTO(m))
 	}
+
 	c.JSON(http.StatusOK, gin.H{"messages": out})
 }
 
-func (a *api) handlePostLaneMessage(c *gin.Context) {
+func (a *api) handlePostLaneMessage(c *gin.Context) { //nolint:gocyclo // multi-branch orchestration; keep under threshold when rewriting
 	principal, ok := a.requirePrincipal(c)
 	if !ok {
 		return
 	}
+
 	lane, err := a.store.GetLane(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		writeStoreError(c, err)
 		return
 	}
+
 	if _, err := a.store.RequireActiveLaneParticipant(c.Request.Context(), lane.ID, principal.User.ID); err != nil {
 		writeStoreError(c, err)
 		return
 	}
+
 	var req postLaneMessageRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		c.JSON(http.StatusBadRequest, gin.H{jsonKeyError: errInvalidRequestBody})
 		return
 	}
+
 	text := strings.TrimSpace(req.Text)
 	if text == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "text is required"})
+		c.JSON(http.StatusBadRequest, gin.H{jsonKeyError: "text is required"})
 		return
 	}
+
 	if a.hub != nil && !a.hub.TryBeginTurn(lane.ID) {
-		c.JSON(http.StatusConflict, gin.H{"error": "a turn is already running"})
+		c.JSON(http.StatusConflict, gin.H{jsonKeyError: "a turn is already running"})
 		return
 	}
+
 	role := models.LaneMessageRoleUser
 	uid := principal.User.ID
+
 	msg, err := a.store.InsertLaneMessage(c.Request.Context(), store.InsertLaneMessageInput{
 		LaneID:       lane.ID,
 		EventType:    models.LaneEventUserMessage,
@@ -86,9 +98,12 @@ func (a *api) handlePostLaneMessage(c *gin.Context) {
 		if a.hub != nil {
 			a.hub.EndTurn(lane.ID)
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save message"})
+
+		c.JSON(http.StatusInternalServerError, gin.H{jsonKeyError: "failed to save message"})
+
 		return
 	}
+
 	if a.hub != nil {
 		a.hub.BroadcastMessage(lane.ID, msg)
 	}
@@ -98,17 +113,20 @@ func (a *api) handlePostLaneMessage(c *gin.Context) {
 	c.JSON(http.StatusAccepted, lanehub.MessageDTO(msg))
 }
 
-func (a *api) runAgentTurn(parent context.Context, lane models.Lane, userMsg models.LaneMessage, authorName string) {
+func (a *api) runAgentTurn(parent context.Context, lane models.Lane, userMsg models.LaneMessage, authorName string) { //nolint:gocyclo // multi-branch orchestration; keep under threshold when rewriting
 	defer func() {
 		if a.hub != nil {
 			a.hub.EndTurn(lane.ID)
 		}
 	}()
+
 	ctx, cancel := context.WithTimeout(parent, 15*time.Minute)
 	defer cancel()
+
 	if a.runtime == nil || lane.RuntimeID == nil || *lane.RuntimeID == "" {
 		role := models.LaneMessageRoleAssistant
 		body := "Lane runtime is not running; message saved but not sent to an agent."
+
 		msg, err := a.store.InsertLaneMessage(ctx, store.InsertLaneMessageInput{
 			LaneID:    lane.ID,
 			EventType: models.LaneEventAssistantMessage,
@@ -118,6 +136,7 @@ func (a *api) runAgentTurn(parent context.Context, lane models.Lane, userMsg mod
 		if err == nil && a.hub != nil {
 			a.hub.BroadcastMessage(lane.ID, msg)
 		}
+
 		return
 	}
 
@@ -125,18 +144,22 @@ func (a *api) runAgentTurn(parent context.Context, lane models.Lane, userMsg mod
 	_ = a.runtime.EnsureAgentBridge(ctx, *lane.RuntimeID)
 
 	stream, err := a.runtime.OpenAgentStream(ctx, *lane.RuntimeID)
+
 	sessionID := ""
 	if lane.AgentProviderSessionID != nil {
 		sessionID = *lane.AgentProviderSessionID
 	}
+
 	body := ""
 	if userMsg.Body != nil {
 		body = *userMsg.Body
 	}
+
 	authorID := ""
 	if userMsg.AuthorUserID != nil {
 		authorID = *userMsg.AuthorUserID
 	}
+
 	_ = a.runtime.SendUserTurn(ctx, *lane.RuntimeID, runtime.UserTurn{
 		Type:              "user_turn",
 		LaneID:            lane.ID,
@@ -152,10 +175,13 @@ func (a *api) runAgentTurn(parent context.Context, lane models.Lane, userMsg mod
 	}
 }
 
-func (a *api) consumeAgentStream(ctx context.Context, laneID string, stream runtime.AgentStream) {
-	defer stream.Close()
+func (a *api) consumeAgentStream(ctx context.Context, laneID string, stream runtime.AgentStream) { //nolint:gocyclo // multi-branch orchestration; keep under threshold when rewriting
+	defer func() { _ = stream.Close() }()
+
 	var assistantBuf strings.Builder
+
 	seenRunning := false
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -165,6 +191,7 @@ func (a *api) consumeAgentStream(ctx context.Context, laneID string, stream runt
 				a.flushAssistantBuffer(ctx, laneID, &assistantBuf)
 				return
 			}
+
 			switch ev.Type {
 			case models.LaneEventProviderSession:
 				if ev.ProviderSessionID != "" {
@@ -174,25 +201,29 @@ func (a *api) consumeAgentStream(ctx context.Context, laneID string, stream runt
 				if ev.Body != "" {
 					assistantBuf.WriteString(ev.Body)
 				}
+
 				if a.hub != nil {
 					a.hub.BroadcastJSON(laneID, map[string]any{
-						"type":  "partial",
-						"event": ev,
+						jsonKeyType:  jsonKeyPartial,
+						jsonKeyEvent: ev,
 					})
 				}
+
 				if ev.Done {
 					a.flushAssistantBuffer(ctx, laneID, &assistantBuf)
 				}
 			case models.LaneEventStatus:
 				if a.hub != nil {
 					a.hub.BroadcastJSON(laneID, map[string]any{
-						"type":  "partial",
-						"event": ev,
+						jsonKeyType:  jsonKeyPartial,
+						jsonKeyEvent: ev,
 					})
 				}
+
 				if ev.Status == "running" {
 					seenRunning = true
 				}
+
 				if ev.Status == "idle" && seenRunning {
 					a.flushAssistantBuffer(ctx, laneID, &assistantBuf)
 					return
@@ -200,10 +231,11 @@ func (a *api) consumeAgentStream(ctx context.Context, laneID string, stream runt
 			case models.LaneEventToolProgress, models.LaneEventToolCall:
 				if a.hub != nil {
 					a.hub.BroadcastJSON(laneID, map[string]any{
-						"type":  "partial",
-						"event": ev,
+						jsonKeyType:  jsonKeyPartial,
+						jsonKeyEvent: ev,
 					})
 				}
+
 				payload, _ := json.Marshal(ev)
 				body := ev.Body
 				_, _ = a.store.InsertLaneMessage(ctx, store.InsertLaneMessageInput{
@@ -221,8 +253,10 @@ func (a *api) flushAssistantBuffer(ctx context.Context, laneID string, buf *stri
 	if buf.Len() == 0 {
 		return
 	}
+
 	role := models.LaneMessageRoleAssistant
 	body := buf.String()
+
 	msg, err := a.store.InsertLaneMessage(ctx, store.InsertLaneMessageInput{
 		LaneID:    laneID,
 		EventType: models.LaneEventAssistantMessage,
@@ -232,5 +266,6 @@ func (a *api) flushAssistantBuffer(ctx context.Context, laneID string, buf *stri
 	if err == nil && a.hub != nil {
 		a.hub.BroadcastMessage(laneID, msg)
 	}
+
 	buf.Reset()
 }

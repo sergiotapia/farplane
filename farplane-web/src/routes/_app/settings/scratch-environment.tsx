@@ -3,25 +3,29 @@ import { createFileRoute } from '@tanstack/react-router'
 import { Check, Hammer, Save } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
-import { DockerfileEditor } from '@/components/dockerfile-editor'
-import { Button } from '@/components/ui/button'
+import { DockerfileEditor } from '@/components/dockerfile-editor.tsx'
+import { Button } from '@/components/ui/button.tsx'
 import {
   ApiError,
   getScratchEnvironment,
   scratchEnvironmentQueryKey,
   upsertScratchEnvironment,
   validateScratchEnvironment,
-} from '@/lib/api'
+} from '@/lib/api.ts'
 
 export const Route = createFileRoute('/_app/settings/scratch-environment')({
   component: ScratchEnvironmentPage,
 })
 
 function lintLogFromError(error: unknown): string | null {
-  if (!(error instanceof ApiError) || !error.body || typeof error.body !== 'object') {
+  if (
+    !(error instanceof ApiError && error.body) ||
+    typeof error.body !== 'object'
+  ) {
     return null
   }
-  const log = (error.body as { last_validation_log?: unknown }).last_validation_log
+  const log = (error.body as { last_validation_log?: unknown })
+    .last_validation_log
   return typeof log === 'string' && log.trim() ? log : null
 }
 
@@ -48,7 +52,9 @@ function ScratchEnvironmentPage() {
     onSuccess: async (next) => {
       setLintLog(next.last_validation_log ?? null)
       queryClient.setQueryData(scratchEnvironmentQueryKey, next)
-      await queryClient.invalidateQueries({ queryKey: scratchEnvironmentQueryKey })
+      await queryClient.invalidateQueries({
+        queryKey: scratchEnvironmentQueryKey,
+      })
     },
     onError: (error) => {
       const log = lintLogFromError(error)
@@ -61,7 +67,9 @@ function ScratchEnvironmentPage() {
     onSuccess: async (next) => {
       setLintLog(next.last_validation_log ?? null)
       queryClient.setQueryData(scratchEnvironmentQueryKey, next)
-      await queryClient.invalidateQueries({ queryKey: scratchEnvironmentQueryKey })
+      await queryClient.invalidateQueries({
+        queryKey: scratchEnvironmentQueryKey,
+      })
     },
   })
 
@@ -120,7 +128,9 @@ function ScratchEnvironmentPage() {
           </div>
 
           {saveMutation.isError ? (
-            <p className="text-destructive text-sm">{saveMutation.error.message}</p>
+            <p className="text-destructive text-sm">
+              {saveMutation.error.message}
+            </p>
           ) : null}
           {validateMutation.isError ? (
             <p className="text-destructive text-sm">

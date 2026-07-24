@@ -1,0 +1,4 @@
+# Fail the gauntlet when mutation efficacy drops below this floor.
+# Efficacy = KILLED / (KILLED + LIVED). Survivors must be killed by stronger tests.
+threshold-efficacy: 90
+threshold-mcover: 80

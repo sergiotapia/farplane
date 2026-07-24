@@ -1,0 +1,38 @@
+# Patch coverage gate for the local agent gauntlet.
+# make cover-backend filters the profile to production Go files with
+# substantive (non-whitespace) changes vs GIT_BASE.
+#
+# Floors target the unit-test surface (mutation packages). Integration
+# packages (httpapi, store, runtime/docker, db, cmd) are skipped until
+# their suites cross the floor — they still run under go test / godog.
+# Next ratchet: per-file and total statement floors to 80.
+
+moduleName: github.com/farplane/farplane/farplane-backend
+
+statementThreshold: 70
+blockThreshold: 60
+lineThreshold: 70
+
+total:
+  statements: 75
+  blocks: 65
+  lines: 75
+
+skip:
+  - "httpapi"
+  - "store"
+  - "/cmd/"
+  - "runtime"
+  - "/db/"
+  - "models"
+  - "_test\\.go$"
+  - "/features/"
+  # Needs hadolint binary + docker check paths; covered by rapid/unit elsewhere.
+  - "dockerlint"
+  # PEM parse edge paths; exercised via githubapp client tests indirectly.
+  - "githubapp/key.go"
+  # Long agent/build harness paths; covered by envgen harness tests.
+  - "envgen/harness.go"
+
+format: table
+tableStyle: light

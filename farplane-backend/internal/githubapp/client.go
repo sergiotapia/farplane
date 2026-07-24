@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/rsa"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -56,27 +57,33 @@ type Client struct {
 // New builds a Client from App credentials.
 func New(cfg Config) (*Client, error) {
 	if cfg.AppID <= 0 {
-		return nil, fmt.Errorf("github app id is required")
+		return nil, errors.New("github app id is required")
 	}
+
 	if strings.TrimSpace(cfg.Slug) == "" {
-		return nil, fmt.Errorf("github app slug is required")
+		return nil, errors.New("github app slug is required")
 	}
+
 	key, err := ParsePrivateKey(cfg.PrivateKeyPEM)
 	if err != nil {
 		return nil, err
 	}
+
 	httpClient := cfg.HTTPClient
 	if httpClient == nil {
 		httpClient = &http.Client{Timeout: defaultHTTPTimeout}
 	}
+
 	apiBase := strings.TrimRight(cfg.APIBaseURL, "/")
 	if apiBase == "" {
 		apiBase = defaultAPIBaseURL
 	}
+
 	webBase := strings.TrimRight(cfg.WebBaseURL, "/")
 	if webBase == "" {
 		webBase = defaultWebBaseURL
 	}
+
 	return &Client{
 		appID:         cfg.AppID,
 		slug:          cfg.Slug,
@@ -95,11 +102,14 @@ func (c *Client) InstallURL(state string) string {
 	if err != nil {
 		return c.webBaseURL + "/apps/" + c.slug + "/installations/new"
 	}
+
 	q := u.Query()
 	if state != "" {
 		q.Set("state", state)
 	}
+
 	u.RawQuery = q.Encode()
+
 	return u.String()
 }
 
@@ -130,6 +140,7 @@ func (c *Client) GetInstallation(ctx context.Context, installationID int64) (Ins
 	if err := c.doAppJSON(ctx, http.MethodGet, "/app/installations/"+strconv.FormatInt(installationID, 10), nil, &out); err != nil {
 		return Installation{}, err
 	}
+
 	return out, nil
 }
 
@@ -139,34 +150,41 @@ func (c *Client) CreateInstallationToken(ctx context.Context, installationID int
 		Token     string    `json:"token"`
 		ExpiresAt time.Time `json:"expires_at"`
 	}
+
 	path := "/app/installations/" + strconv.FormatInt(installationID, 10) + "/access_tokens"
 	if err := c.doAppJSON(ctx, http.MethodPost, path, bytes.NewReader([]byte("{}")), &out); err != nil {
 		return "", time.Time{}, err
 	}
+
 	return out.Token, out.ExpiresAt.UTC(), nil
 }
 
 // ListInstallationRepositories lists repos for an installation access token.
 func (c *Client) ListInstallationRepositories(ctx context.Context, installationToken string) ([]Repository, error) {
 	var all []Repository
+
 	page := 1
 	for {
 		path := "/installation/repositories?per_page=100&page=" + strconv.Itoa(page)
+
 		var out struct {
 			Repositories []Repository `json:"repositories"`
 		}
 		if err := c.doTokenJSON(ctx, installationToken, http.MethodGet, path, nil, &out); err != nil {
 			return nil, err
 		}
+
 		all = append(all, out.Repositories...)
 		if len(out.Repositories) < 100 {
 			break
 		}
+
 		page++
 		if page > 50 {
-			return nil, fmt.Errorf("github: too many repository pages")
+			return nil, errors.New("github: too many repository pages")
 		}
 	}
+
 	return all, nil
 }
 
@@ -175,6 +193,7 @@ func (c *Client) doAppJSON(ctx context.Context, method, path string, body io.Rea
 	if err != nil {
 		return err
 	}
+
 	return c.doJSON(ctx, "Bearer "+jwtToken, method, path, body, dest)
 }
 
@@ -187,10 +206,12 @@ func (c *Client) doJSON(ctx context.Context, authorization, method, path string,
 	if err != nil {
 		return fmt.Errorf("github request: %w", err)
 	}
+
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("Authorization", authorization)
 	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
 	req.Header.Set("User-Agent", userAgent)
+
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
@@ -199,21 +220,25 @@ func (c *Client) doJSON(ctx context.Context, authorization, method, path string,
 	if err != nil {
 		return fmt.Errorf("github http: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
 	if err != nil {
 		return fmt.Errorf("github read body: %w", err)
 	}
+
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("github api %s %s: status %d: %s", method, path, resp.StatusCode, strings.TrimSpace(string(raw)))
 	}
+
 	if dest == nil || len(raw) == 0 {
 		return nil
 	}
+
 	if err := json.Unmarshal(raw, dest); err != nil {
 		return fmt.Errorf("github decode: %w", err)
 	}
+
 	return nil
 }
 
@@ -225,9 +250,11 @@ func (c *Client) appJWT() (string, error) {
 		Issuer:    strconv.FormatInt(c.appID, 10),
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+
 	signed, err := token.SignedString(c.privateKey)
 	if err != nil {
 		return "", fmt.Errorf("sign github app jwt: %w", err)
 	}
+
 	return signed, nil
 }

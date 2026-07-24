@@ -1,7 +1,7 @@
 import { useState } from 'react'
 
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button.tsx'
+import { Input } from '@/components/ui/input.tsx'
 
 type MockMessage = {
   id: string
@@ -100,7 +100,7 @@ export function LaneConversationPanel({
             type="button"
             size="sm"
             variant="outline"
-            disabled={!turnRunning || !canInterrupt}
+            disabled={!(turnRunning && canInterrupt)}
             onClick={onInterrupt}
           >
             Stop

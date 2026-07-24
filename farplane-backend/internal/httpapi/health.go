@@ -12,7 +12,7 @@ import (
 
 // handleHealth is liveness only: the process is up.
 func handleHealth(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	c.JSON(http.StatusOK, gin.H{jsonKeyStatus: "ok"})
 }
 
 // handleReady is readiness: Postgres must accept a ping.
@@ -20,9 +20,10 @@ func handleReady(pool *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if pool == nil {
 			c.JSON(http.StatusServiceUnavailable, gin.H{
-				"status":   "unavailable",
-				"database": "missing",
+				jsonKeyStatus: "unavailable",
+				"database":    "missing",
 			})
+
 			return
 		}
 
@@ -32,15 +33,16 @@ func handleReady(pool *pgxpool.Pool) gin.HandlerFunc {
 		if err := pool.Ping(ctx); err != nil {
 			log.Printf("ready: database ping failed: %v", err)
 			c.JSON(http.StatusServiceUnavailable, gin.H{
-				"status":   "unavailable",
-				"database": "down",
+				jsonKeyStatus: "unavailable",
+				"database":    "down",
 			})
+
 			return
 		}
 
 		c.JSON(http.StatusOK, gin.H{
-			"status":   "ok",
-			"database": "up",
+			jsonKeyStatus: "ok",
+			"database":    "up",
 		})
 	}
 }

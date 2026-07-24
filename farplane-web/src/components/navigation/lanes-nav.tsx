@@ -1,6 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { useEffect, useMemo, useState, type ReactElement } from 'react'
 import {
   ChevronRightIcon,
   FolderIcon,
@@ -9,16 +8,17 @@ import {
   RouteIcon,
   UsersIcon,
 } from 'lucide-react'
+import { type ReactElement, useEffect, useMemo, useState } from 'react'
 
 import {
   CreateLaneDialog,
   type CreateLanePrefill,
-} from '@/components/lanes/create-lane-dialog'
+} from '@/components/lanes/create-lane-dialog.tsx'
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from '@/components/ui/collapsible'
+} from '@/components/ui/collapsible.tsx'
 import {
   SidebarGroup,
   SidebarGroupAction,
@@ -32,21 +32,21 @@ import {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
-} from '@/components/ui/sidebar'
+} from '@/components/ui/sidebar.tsx'
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from '@/components/ui/tooltip'
+} from '@/components/ui/tooltip.tsx'
 import {
+  type GroupedLanes,
   getLanes,
+  type Lane,
   lanesQueryKey,
   lanesTurnWebSocketURL,
-  type GroupedLanes,
-  type Lane,
-} from '@/lib/api'
-import { cn } from '@/lib/utils'
+} from '@/lib/api.ts'
+import { cn } from '@/lib/utils.ts'
 
 type LaneStatus = 'idle' | 'working'
 
@@ -115,8 +115,9 @@ export function LanesNav() {
           turns?: Record<string, boolean>
         }
         if (data.type === 'snapshot' && data.turns) {
+          const turns = data.turns
           queryClient.setQueryData<GroupedLanes>(lanesQueryKey, (prev) =>
-            prev ? patchTurnRunning(prev, data.turns!) : prev,
+            prev ? patchTurnRunning(prev, turns) : prev,
           )
           return
         }
@@ -125,10 +126,12 @@ export function LanesNav() {
           data.lane_id &&
           typeof data.turn_running === 'boolean'
         ) {
+          const laneId = data.lane_id
+          const turnRunning = data.turn_running
           queryClient.setQueryData<GroupedLanes>(lanesQueryKey, (prev) =>
             prev
               ? patchTurnRunning(prev, {
-                  [data.lane_id!]: data.turn_running!,
+                  [laneId]: turnRunning,
                 })
               : prev,
           )
@@ -210,7 +213,7 @@ export function LanesNav() {
                       <ChevronRightIcon className="size-3! opacity-0 transition-[transform,opacity] duration-150 group-hover/menu-item:opacity-100 group-focus-within/menu-item:opacity-100 group-data-panel-open/folder:rotate-90" />
                     </CollapsibleTrigger>
                     <SidebarMenuAction
-                      showOnHover
+                      showOnHover={true}
                       title={`New lane in ${group.name}`}
                       aria-label={`New lane in ${group.name}`}
                       onClick={() =>
@@ -299,9 +302,7 @@ function LaneMenuItem({ lane }: { lane: Lane }) {
     <SidebarMenuItem>
       <LaneTooltip label={lane.name}>
         <SidebarMenuButton
-          render={
-            <Link to="/lanes/$laneId" params={{ laneId: lane.id }} />
-          }
+          render={<Link to="/lanes/$laneId" params={{ laneId: lane.id }} />}
           className="text-sidebar-foreground/90"
         >
           <LaneStatusIcon status={laneStatus(lane)} />
@@ -347,7 +348,12 @@ function LaneStatusIcon({ status }: { status: LaneStatus }) {
         aria-hidden="true"
         className="flex size-3.5 shrink-0 items-center justify-center text-sidebar-foreground"
       >
-        <svg viewBox="0 0 16 16" className="size-3.5" fill="currentColor">
+        <svg
+          viewBox="0 0 16 16"
+          className="size-3.5"
+          fill="currentColor"
+          aria-hidden="true"
+        >
           <rect
             x="2.5"
             y="4"

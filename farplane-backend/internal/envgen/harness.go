@@ -3,6 +3,7 @@ package envgen
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -81,7 +82,7 @@ var discoveryPreference = []harnessCandidate{
 }
 
 // ErrNoDiscoveryHarness means no secret+binary pair can run discovery.
-var ErrNoDiscoveryHarness = fmt.Errorf("no discovery harness available")
+var ErrNoDiscoveryHarness = errors.New("no discovery harness available")
 
 // SelectDiscoveryHarness picks a headless agent from org secrets and host PATH.
 // Priority: codex → claude → oh-my-pi → opencode. Oh-my-pi and OpenCode require
@@ -90,17 +91,21 @@ func SelectDiscoveryHarness(secrets map[string]string, lookPath LookPathFunc) (D
 	if lookPath == nil {
 		lookPath = exec.LookPath
 	}
+
 	var missing []string
+
 	for _, candidate := range discoveryPreference {
 		if strings.TrimSpace(secrets[candidate.SecretName]) == "" {
 			missing = append(missing, candidate.Provider+": "+candidate.SecretName+" not set")
 			continue
 		}
+
 		path, err := lookPath(candidate.BinaryName)
 		if err != nil || strings.TrimSpace(path) == "" {
 			missing = append(missing, candidate.Provider+": "+candidate.BinaryName+" not on PATH")
 			continue
 		}
+
 		return DiscoveryHarness{
 			Provider:    candidate.Provider,
 			BinaryName:  candidate.BinaryName,
@@ -110,6 +115,7 @@ func SelectDiscoveryHarness(secrets map[string]string, lookPath LookPathFunc) (D
 			AgentModel:  candidate.AgentModel,
 		}, nil
 	}
+
 	return DiscoveryHarness{}, fmt.Errorf("%w (%s)", ErrNoDiscoveryHarness, strings.Join(missing, "; "))
 }
 
@@ -117,8 +123,9 @@ func SelectDiscoveryHarness(secrets map[string]string, lookPath LookPathFunc) (D
 func HarnessArgs(provider, prompt, model string) ([]string, error) {
 	model = strings.TrimSpace(model)
 	if model == "" {
-		return nil, fmt.Errorf("discovery model is required")
+		return nil, errors.New("discovery model is required")
 	}
+
 	switch strings.TrimSpace(provider) {
 	case models.AgentProviderOhMyPi:
 		return []string{
@@ -167,7 +174,7 @@ func HarnessArgs(provider, prompt, model string) ([]string, error) {
 	}
 }
 
-func (s *Service) runDiscoveryHarness(
+func (s *Service) runDiscoveryHarness( //nolint:gocyclo // multi-branch orchestration; keep under threshold when rewriting
 	ctx context.Context,
 	harness DiscoveryHarness,
 	req Request,
@@ -182,14 +189,17 @@ func (s *Service) runDiscoveryHarness(
 	}
 
 	env := append([]string{}, os.Environ()...)
+
 	for name, value := range req.Secrets {
 		if strings.TrimSpace(value) == "" {
 			continue
 		}
+
 		env = append(env, name+"="+value)
 	}
 	// OpenCode reads OPENCODE_*; keep YOLO for discovery.
-	env = append(env,
+	env = append(
+		env,
 		"OPENCODE_DANGEROUSLY_SKIP_PERMISSIONS=true",
 		"OPENCODE_YOLO=true",
 	)
@@ -198,14 +208,17 @@ func (s *Service) runDiscoveryHarness(
 	if run == nil {
 		run = defaultRunCommand
 	}
+
 	runCtx := ctx
 	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
 		var cancel context.CancelFunc
+
 		runCtx, cancel = context.WithTimeout(ctx, AgentTurnTimeout)
 		defer cancel()
 	}
 
 	combined, runErr := run(runCtx, harness.BinaryPath, args, req.WorkspaceDir, env)
+
 	logText := fmt.Sprintf(
 		"Discovery harness: provider=%s binary=%s model_source=%s secret=%s model=%s\n",
 		harness.Provider, harness.BinaryName, harness.ModelSource, harness.SecretName, harness.AgentModel,
@@ -213,32 +226,41 @@ func (s *Service) runDiscoveryHarness(
 	if strings.TrimSpace(combined) != "" {
 		logText += "Harness output (tail):\n" + truncate(combined, 4000) + "\n"
 	}
+
 	if runErr != nil {
 		return "", logText, fmt.Errorf("harness %s: %w", harness.BinaryName, runErr)
 	}
 
+	//nolint:gosec // G304: path is under the cloned workspace root controlled by envgen.
 	raw, readErr := os.ReadFile(outPath)
 	if readErr != nil {
 		// Some harnesses may print the Dockerfile instead of writing the file.
 		if extracted := stripMarkdownFence(combined); strings.Contains(extracted, "FROM ") {
 			return extracted, logText + "Read Dockerfile from harness stdout (file missing).\n", nil
 		}
+
 		return "", logText, fmt.Errorf("harness did not write %s: %w", GeneratedDockerfileName, readErr)
 	}
+
 	text := strings.TrimSpace(string(raw))
 	if text == "" {
 		return "", logText, fmt.Errorf("harness wrote empty %s", GeneratedDockerfileName)
 	}
+
 	return text, logText + "Wrote " + GeneratedDockerfileName + "\n", nil
 }
 
 func defaultRunCommand(ctx context.Context, name string, args []string, dir string, env []string) (string, error) {
+	//nolint:gosec // G204: command binary is a fixed tool name or resolved from PATH on purpose.
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = dir
 	cmd.Env = env
+
 	var buf bytes.Buffer
+
 	cmd.Stdout = &buf
 	cmd.Stderr = &buf
 	err := cmd.Run()
+
 	return buf.String(), err
 }

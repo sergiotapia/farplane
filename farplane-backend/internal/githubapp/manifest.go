@@ -3,6 +3,7 @@ package githubapp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -52,6 +53,7 @@ type ManifestApp struct {
 func BuildManifest(appBaseURL, apiBaseURL, farplaneOrganizationName string) Manifest {
 	appBaseURL = strings.TrimRight(appBaseURL, "/")
 	apiBaseURL = strings.TrimRight(apiBaseURL, "/")
+
 	return Manifest{
 		Name: ManifestAppName(farplaneOrganizationName),
 		URL:  appBaseURL,
@@ -77,16 +79,19 @@ func BuildManifest(appBaseURL, apiBaseURL, farplaneOrganizationName string) Mani
 // GitHub App names must be unique across GitHub (plain "Farplane" is reserved).
 func ManifestAppName(farplaneOrganizationName string) string {
 	org := strings.TrimSpace(farplaneOrganizationName)
+
 	name := "Farplane AI"
 	if org != "" {
 		name = "Farplane AI (" + org + ")"
 	}
 	// GitHub App names are limited to 34 characters (count runes, not bytes).
 	const maxLen = 34
+
 	runes := []rune(name)
 	if len(runes) > maxLen {
 		name = strings.TrimSpace(string(runes[:maxLen]))
 	}
+
 	return name
 }
 
@@ -97,21 +102,24 @@ func ManifestRegisterURL(githubOrganizationLogin string) string {
 	if org == "" {
 		return defaultWebBaseURL + "/settings/apps/new"
 	}
+
 	return defaultWebBaseURL + "/organizations/" + url.PathEscape(org) + "/settings/apps/new"
 }
 
 // ConvertManifest exchanges a temporary manifest code for App credentials.
-func ConvertManifest(ctx context.Context, httpClient HTTPDoer, apiBaseURL, code string) (ManifestApp, error) {
+func ConvertManifest(ctx context.Context, httpClient HTTPDoer, apiBaseURL, code string) (ManifestApp, error) { //nolint:gocyclo // multi-branch orchestration; keep under threshold when rewriting
 	if httpClient == nil {
 		httpClient = &http.Client{Timeout: defaultHTTPTimeout}
 	}
+
 	apiBaseURL = strings.TrimRight(apiBaseURL, "/")
 	if apiBaseURL == "" {
 		apiBaseURL = defaultAPIBaseURL
 	}
+
 	code = strings.TrimSpace(code)
 	if code == "" {
-		return ManifestApp{}, fmt.Errorf("manifest code is empty")
+		return ManifestApp{}, errors.New("manifest code is empty")
 	}
 
 	req, err := http.NewRequestWithContext(
@@ -123,6 +131,7 @@ func ConvertManifest(ctx context.Context, httpClient HTTPDoer, apiBaseURL, code 
 	if err != nil {
 		return ManifestApp{}, fmt.Errorf("manifest convert request: %w", err)
 	}
+
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
 	req.Header.Set("User-Agent", userAgent)
@@ -131,20 +140,25 @@ func ConvertManifest(ctx context.Context, httpClient HTTPDoer, apiBaseURL, code 
 	if err != nil {
 		return ManifestApp{}, fmt.Errorf("manifest convert http: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
+
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
 		return ManifestApp{}, fmt.Errorf("manifest convert read: %w", err)
 	}
+
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return ManifestApp{}, fmt.Errorf("manifest convert: status %d: %s", resp.StatusCode, strings.TrimSpace(string(raw)))
 	}
+
 	var out ManifestApp
 	if err := json.Unmarshal(raw, &out); err != nil {
 		return ManifestApp{}, fmt.Errorf("manifest convert decode: %w", err)
 	}
+
 	if out.ID <= 0 || out.PEM == "" || out.Slug == "" || strings.TrimSpace(out.WebhookSecret) == "" {
-		return ManifestApp{}, fmt.Errorf("manifest convert: incomplete app credentials")
+		return ManifestApp{}, errors.New("manifest convert: incomplete app credentials")
 	}
+
 	return out, nil
 }

@@ -17,6 +17,7 @@ func testDatabaseURL() string {
 	if url := os.Getenv("TEST_DATABASE_URL"); url != "" {
 		return url
 	}
+
 	return "postgres://postgres:postgres@127.0.0.1:5432/farplane_test?sslmode=disable"
 }
 
@@ -26,6 +27,7 @@ func requireTestDB(t *testing.T) string {
 	t.Cleanup(testDBMu.Unlock)
 
 	url := testDatabaseURL()
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -33,7 +35,9 @@ func requireTestDB(t *testing.T) string {
 	if err != nil {
 		t.Skipf("test database unavailable (%s): %v", url, err)
 	}
+
 	pool.Close()
+
 	return url
 }
 
@@ -75,9 +79,11 @@ func TestMigrateUpAndStatus(t *testing.T) {
 	if err := db.MigrateUp(url); err != nil {
 		t.Fatalf("MigrateUp again: %v", err)
 	}
+
 	if err := db.MigrateStatus(url); err != nil {
 		t.Fatalf("MigrateStatus: %v", err)
 	}
+
 	if err := db.MigrateVersion(url); err != nil {
 		t.Fatalf("MigrateVersion: %v", err)
 	}

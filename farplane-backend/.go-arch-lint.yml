@@ -1,0 +1,115 @@
+version: 3
+workdir: internal
+
+# Vendor imports must be opted in per component (anyVendorDeps).
+# deepScan also checks method calls / DI wiring, not only imports.
+allow:
+  depOnAnyVendor: false
+  deepScan: true
+
+excludeFiles:
+  - "^.*_test\\.go$"
+
+components:
+  httpapi: { in: httpapi }
+  store: { in: store }
+  auth: { in: auth }
+  config: { in: config }
+  db: { in: db }
+  models: { in: models }
+  secretbox: { in: secretbox }
+  githubapp: { in: githubapp }
+  lanehub: { in: lanehub }
+  agents: { in: agents }
+  envgen: { in: envgen }
+  dockerlint: { in: dockerlint }
+  lanetemplate: { in: lanetemplate }
+  runtime: { in: runtime }
+  runtimeDocker: { in: runtime/docker }
+
+commonComponents:
+  - models
+  - config
+
+deps:
+  # HTTP edge may orchestrate the control plane — list every project dep.
+  httpapi:
+    mayDependOn:
+      - store
+      - auth
+      - agents
+      - githubapp
+      - lanehub
+      - dockerlint
+      - envgen
+      - runtime
+      - runtimeDocker
+      - db
+    anyVendorDeps: true
+
+  # Persistence talks to domain helpers, not HTTP.
+  store:
+    mayDependOn:
+      - auth
+      - secretbox
+      - agents
+      - lanetemplate
+    anyVendorDeps: true
+
+  auth:
+    mayDependOn: []
+    anyVendorDeps: true
+
+  db:
+    mayDependOn: []
+    anyVendorDeps: true
+
+  secretbox:
+    mayDependOn: []
+    anyVendorDeps: true
+
+  githubapp:
+    mayDependOn: []
+    anyVendorDeps: true
+
+  # Leaf packages: no project deps. anyVendorDeps required by schema even
+  # when they only use the standard library today.
+  lanehub:
+    mayDependOn: []
+    anyVendorDeps: true
+
+  agents:
+    mayDependOn: []
+    anyVendorDeps: true
+
+  envgen:
+    mayDependOn:
+      - agents
+      - lanetemplate
+    anyVendorDeps: true
+
+  dockerlint:
+    mayDependOn: []
+    anyVendorDeps: true
+
+  lanetemplate:
+    mayDependOn: []
+    anyVendorDeps: true
+
+  runtime:
+    mayDependOn: []
+    anyVendorDeps: true
+
+  runtimeDocker:
+    mayDependOn:
+      - runtime
+      - lanetemplate
+    anyVendorDeps: true
+
+  models:
+    mayDependOn: []
+    anyVendorDeps: true
+
+  config:
+    mayDependOn: []
+    anyVendorDeps: true

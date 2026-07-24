@@ -21,16 +21,20 @@ import (
 func signWebhook(secret string, body []byte) string {
 	mac := hmac.New(sha256.New, []byte(secret))
 	_, _ = mac.Write(body)
+
 	return "sha256=" + hex.EncodeToString(mac.Sum(nil))
 }
 
 func testPrivateKeyPEM(t *testing.T) string {
 	t.Helper()
+
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		t.Fatalf("GenerateKey: %v", err)
 	}
+
 	der := x509.MarshalPKCS1PrivateKey(key)
+
 	return string(pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: der}))
 }
 
@@ -44,6 +48,7 @@ func TestInstallURLAndWebhookSignature(t *testing.T) {
 	t.Parallel()
 
 	pemKey := testPrivateKeyPEM(t)
+
 	client, err := githubapp.New(githubapp.Config{
 		AppID:         12345,
 		Slug:          "farplane",
@@ -59,15 +64,18 @@ func TestInstallURLAndWebhookSignature(t *testing.T) {
 	if !strings.Contains(url, "/apps/farplane/installations/new") {
 		t.Fatalf("InstallURL = %q", url)
 	}
+
 	if !strings.Contains(url, "state=abc.state") {
 		t.Fatalf("InstallURL missing state: %q", url)
 	}
 
 	body := []byte(`{"action":"created"}`)
+
 	macOK := signWebhook("hook-secret", body)
 	if !client.VerifyWebhookSignature(body, macOK) {
 		t.Fatal("expected valid signature")
 	}
+
 	if client.VerifyWebhookSignature(body, "sha256=deadbeef") {
 		t.Fatal("expected invalid signature")
 	}
@@ -77,16 +85,21 @@ func TestCreateInstallationTokenAndListRepos(t *testing.T) {
 	t.Parallel()
 
 	pemKey := testPrivateKeyPEM(t)
+
 	var sawPaths []string
+
 	transport := roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		sawPaths = append(sawPaths, req.Method+" "+req.URL.Path)
+
 		auth := req.Header.Get("Authorization")
 		if !strings.HasPrefix(auth, "Bearer ") {
 			t.Fatalf("missing bearer auth on %s", req.URL.Path)
 		}
+
 		switch {
 		case req.Method == http.MethodPost && strings.HasSuffix(req.URL.Path, "/access_tokens"):
 			body := `{"token":"ghs_test","expires_at":"2030-01-02T03:04:05Z"}`
+
 			return &http.Response{
 				StatusCode: http.StatusCreated,
 				Body:       io.NopCloser(strings.NewReader(body)),
@@ -94,6 +107,7 @@ func TestCreateInstallationTokenAndListRepos(t *testing.T) {
 			}, nil
 		case req.Method == http.MethodGet && req.URL.Path == "/installation/repositories":
 			body := `{"repositories":[{"id":99,"full_name":"acme/web","default_branch":"main","private":true,"html_url":"https://github.com/acme/web"}]}`
+
 			return &http.Response{
 				StatusCode: http.StatusOK,
 				Body:       io.NopCloser(strings.NewReader(body)),
@@ -118,13 +132,16 @@ func TestCreateInstallationTokenAndListRepos(t *testing.T) {
 	}
 
 	ctx := context.Background()
+
 	token, expires, err := client.CreateInstallationToken(ctx, 777)
 	if err != nil {
 		t.Fatalf("CreateInstallationToken: %v", err)
 	}
+
 	if token != "ghs_test" {
 		t.Fatalf("token = %q", token)
 	}
+
 	if !expires.Equal(time.Date(2030, 1, 2, 3, 4, 5, 0, time.UTC)) {
 		t.Fatalf("expires = %v", expires)
 	}
@@ -133,9 +150,11 @@ func TestCreateInstallationTokenAndListRepos(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListInstallationRepositories: %v", err)
 	}
+
 	if len(repos) != 1 || repos[0].FullName != "acme/web" || repos[0].ID != 99 {
 		t.Fatalf("repos = %+v", repos)
 	}
+
 	if len(sawPaths) != 2 {
 		t.Fatalf("paths = %v", sawPaths)
 	}

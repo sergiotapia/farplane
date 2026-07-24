@@ -3,6 +3,7 @@ package envgen
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"log"
@@ -70,10 +71,11 @@ func New() *Service {
 }
 
 // Generate runs agent write → docker build → repair (max 5) until the image builds.
-func (s *Service) Generate(ctx context.Context, req Request) (Result, error) {
+func (s *Service) Generate(ctx context.Context, req Request) (Result, error) { //nolint:gocyclo,funlen // multi-branch orchestration; keep under threshold when rewriting
 	if strings.TrimSpace(req.WorkspaceDir) == "" {
-		return Result{}, fmt.Errorf("workspace dir is required")
+		return Result{}, errors.New("workspace dir is required")
 	}
+
 	base, err := lanetemplate.DefaultDockerfile()
 	if err != nil {
 		return Result{}, fmt.Errorf("default dockerfile: %w", err)
@@ -83,6 +85,7 @@ func (s *Service) Generate(ctx context.Context, req Request) (Result, error) {
 	if lookPath == nil {
 		lookPath = exec.LookPath
 	}
+
 	harness, harnessErr := SelectDiscoveryHarness(req.Secrets, lookPath)
 	if harnessErr != nil {
 		return Result{}, fmt.Errorf("%w", harnessErr)
@@ -91,22 +94,24 @@ func (s *Service) Generate(ctx context.Context, req Request) (Result, error) {
 	if err := MaterializeBuildContext(req.WorkspaceDir); err != nil {
 		return Result{}, fmt.Errorf("materialize build context: %w", err)
 	}
+
 	if err := os.WriteFile(
 		filepath.Join(req.WorkspaceDir, FarplaneBaseDockerfileName),
 		[]byte(base),
-		0o644,
+		0o600,
 	); err != nil {
 		return Result{}, fmt.Errorf("write base dockerfile: %w", err)
 	}
 
 	if s.BuildImage == nil {
-		return Result{}, fmt.Errorf("image builder is required")
+		return Result{}, errors.New("image builder is required")
 	}
 
 	repo := strings.TrimSpace(req.RepoFullName)
 	if repo == "" {
 		repo = "(unknown repo)"
 	}
+
 	log.Printf(
 		"envgen start repo=%s workspace=%s provider=%s binary=%s model=%s max_attempts=%d agent_timeout=%s",
 		repo, req.WorkspaceDir, harness.Provider, harness.BinaryName, harness.AgentModel,
@@ -114,28 +119,36 @@ func (s *Service) Generate(ctx context.Context, req Request) (Result, error) {
 	)
 
 	var genLog strings.Builder
-	genLog.WriteString(fmt.Sprintf(
+	fmt.Fprintf(
+		&genLog,
 		"Discovery harness: provider=%s binary=%s model=%s\n",
 		harness.Provider, harness.BinaryName, harness.AgentModel,
-	))
+	)
 
-	var lastDockerfile string
-	var lastBuildLog string
+	var (
+		lastDockerfile string
+		lastBuildLog   string
+	)
+
 	outPath := filepath.Join(req.WorkspaceDir, GeneratedDockerfileName)
+
 	for attempt := 1; attempt <= MaxGenerateAttempts; attempt++ {
 		var prompt string
+
 		phase := "initial"
+
 		if attempt == 1 {
 			_ = os.Remove(outPath)
 			prompt = buildInitialPrompt(req.RepoFullName, GeneratedDockerfileName, FarplaneBaseDockerfileName)
 		} else {
 			phase = "repair"
 			// Leave the broken Dockerfile on disk so the agent can read and rewrite it.
-			if err := os.WriteFile(outPath, []byte(lastDockerfile+"\n"), 0o644); err != nil {
+			if err := os.WriteFile(outPath, []byte(lastDockerfile+"\n"), 0o600); err != nil {
 				return Result{Log: genLog.String(), BuildLog: lastBuildLog}, fmt.Errorf(
 					"write dockerfile for repair: %w", err,
 				)
 			}
+
 			prompt = buildRepairPrompt(
 				req.RepoFullName,
 				GeneratedDockerfileName,
@@ -146,18 +159,21 @@ func (s *Service) Generate(ctx context.Context, req Request) (Result, error) {
 		}
 
 		log.Printf("envgen agent start repo=%s attempt=%d/%d phase=%s", repo, attempt, MaxGenerateAttempts, phase)
-		genLog.WriteString(fmt.Sprintf("\n--- agent attempt %d/%d ---\n", attempt, MaxGenerateAttempts))
+		fmt.Fprintf(&genLog, "\n--- agent attempt %d/%d ---\n", attempt, MaxGenerateAttempts)
+
 		agentStarted := time.Now()
 		dockerfile, harnessLog, runErr := s.runDiscoveryHarness(ctx, harness, req, prompt)
 		agentElapsed := time.Since(agentStarted).Round(time.Millisecond)
+
 		genLog.WriteString(harnessLog)
-		if runErr != nil || strings.TrimSpace(dockerfile) == "" {
+
+		if runErr != nil || strings.TrimSpace(dockerfile) == "" { //nolint:nestif // nested validation/orchestration; flatten when rewriting
 			if runErr != nil {
 				log.Printf(
 					"envgen agent failed repo=%s attempt=%d/%d elapsed=%s err=%v",
 					repo, attempt, MaxGenerateAttempts, agentElapsed, runErr,
 				)
-				genLog.WriteString(fmt.Sprintf("agent failed: %v\n", runErr))
+				fmt.Fprintf(&genLog, "agent failed: %v\n", runErr)
 			} else {
 				log.Printf(
 					"envgen agent empty dockerfile repo=%s attempt=%d/%d elapsed=%s",
@@ -172,17 +188,21 @@ func (s *Service) Generate(ctx context.Context, req Request) (Result, error) {
 						"discovery harness failed on attempt %d: %w", attempt, runErr,
 					)
 				}
+
 				return Result{Log: genLog.String(), BuildLog: lastBuildLog}, fmt.Errorf(
 					"discovery harness returned an empty Dockerfile on attempt %d", attempt,
 				)
 			}
+
 			log.Printf(
 				"envgen agent retry repo=%s attempt=%d/%d keeping prior dockerfile",
 				repo, attempt, MaxGenerateAttempts,
 			)
 			genLog.WriteString("keeping prior Dockerfile; will retry repair on next attempt\n")
+
 			continue
 		}
+
 		lastDockerfile = strings.TrimSpace(dockerfile)
 		log.Printf(
 			"envgen agent ok repo=%s attempt=%d/%d elapsed=%s dockerfile_bytes=%d",
@@ -191,22 +211,27 @@ func (s *Service) Generate(ctx context.Context, req Request) (Result, error) {
 
 		tag := fmt.Sprintf("farplane-envgen:%d-%d", time.Now().Unix(), attempt)
 		log.Printf("envgen docker build start repo=%s attempt=%d/%d tag=%s", repo, attempt, MaxGenerateAttempts, tag)
-		genLog.WriteString(fmt.Sprintf("\n--- docker build attempt %d/%d ---\n", attempt, MaxGenerateAttempts))
+		fmt.Fprintf(&genLog, "\n--- docker build attempt %d/%d ---\n", attempt, MaxGenerateAttempts)
+
 		buildStarted := time.Now()
 		imageRef, buildLog, buildErr := s.BuildImage(ctx, lastDockerfile, tag)
 		buildElapsed := time.Since(buildStarted).Round(time.Millisecond)
 		lastBuildLog = buildLog
+
 		if buildErr == nil {
 			log.Printf(
 				"envgen docker build ok repo=%s attempt=%d/%d elapsed=%s image=%s",
 				repo, attempt, MaxGenerateAttempts, buildElapsed, imageRef,
 			)
 			genLog.WriteString("docker build succeeded\n")
+
 			if strings.TrimSpace(buildLog) != "" {
 				genLog.WriteString(truncateTail(buildLog, 2000))
 				genLog.WriteString("\n")
 			}
+
 			log.Printf("envgen success repo=%s attempts=%d image=%s", repo, attempt, imageRef)
+
 			return Result{
 				DockerfileText: lastDockerfile,
 				Log:            genLog.String(),
@@ -214,6 +239,7 @@ func (s *Service) Generate(ctx context.Context, req Request) (Result, error) {
 				BuildLog:       buildLog,
 			}, nil
 		}
+
 		log.Printf(
 			"envgen docker build failed repo=%s attempt=%d/%d elapsed=%s err=%v tail=%q",
 			repo, attempt, MaxGenerateAttempts, buildElapsed, buildErr,
@@ -227,6 +253,7 @@ func (s *Service) Generate(ctx context.Context, req Request) (Result, error) {
 	}
 
 	log.Printf("envgen failed repo=%s after %d build attempts", repo, MaxGenerateAttempts)
+
 	return Result{
 		DockerfileText: lastDockerfile,
 		Log:            genLog.String(),
@@ -239,27 +266,33 @@ func (s *Service) Generate(ctx context.Context, req Request) (Result, error) {
 func MaterializeBuildContext(dest string) error {
 	dest = strings.TrimSpace(dest)
 	if dest == "" {
-		return fmt.Errorf("destination is required")
+		return errors.New("destination is required")
 	}
+
 	return fs.WalkDir(lanetemplate.BuildContextFS(), ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
+
 		if path == "." || path == "Dockerfile" {
 			return nil
 		}
+
 		target := filepath.Join(dest, path)
 		if d.IsDir() {
-			return os.MkdirAll(target, 0o755)
+			return os.MkdirAll(target, 0o750)
 		}
+
 		data, err := fs.ReadFile(lanetemplate.BuildContextFS(), path)
 		if err != nil {
 			return err
 		}
-		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+
+		if err := os.MkdirAll(filepath.Dir(target), 0o750); err != nil {
 			return err
 		}
-		return os.WriteFile(target, data, 0o644)
+
+		return os.WriteFile(target, data, 0o600)
 	})
 }
 
@@ -272,9 +305,11 @@ func stripMarkdownFence(text string) string {
 			if len(lines) > 0 && strings.HasPrefix(strings.TrimSpace(lines[len(lines)-1]), "```") {
 				lines = lines[:len(lines)-1]
 			}
+
 			text = strings.Join(lines, "\n")
 		}
 	}
+
 	return strings.TrimSpace(text)
 }
 
@@ -282,6 +317,7 @@ func truncate(s string, n int) string {
 	if len(s) <= n {
 		return s
 	}
+
 	return s[:n] + "..."
 }
 
@@ -290,29 +326,37 @@ func truncateTail(s string, n int) string {
 	if len(s) <= n {
 		return s
 	}
+
 	return "...\n" + s[len(s)-n:]
 }
 
 // CloneRepository clones a GitHub repo into a temp directory using an installation token.
 func CloneRepository(ctx context.Context, fullName, branch, token string) (string, error) {
 	fullName = strings.TrimSpace(fullName)
+
 	branch = strings.TrimSpace(branch)
 	if branch == "" {
 		branch = "main"
 	}
+
 	if fullName == "" || token == "" {
-		return "", fmt.Errorf("fullName and token are required")
+		return "", errors.New("fullName and token are required")
 	}
+
 	dir, err := os.MkdirTemp("", "farplane-envgen-*")
 	if err != nil {
 		return "", err
 	}
+
 	url := fmt.Sprintf("https://x-access-token:%s@github.com/%s.git", token, fullName)
+	//nolint:gosec // G204: command binary is a fixed tool name or resolved from PATH on purpose.
 	cmd := exec.CommandContext(ctx, "git", "clone", "--depth", "1", "--branch", branch, url, dir)
+
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		_ = os.RemoveAll(dir)
 		return "", fmt.Errorf("git clone: %w: %s", err, truncate(string(out), 800))
 	}
+
 	return dir, nil
 }

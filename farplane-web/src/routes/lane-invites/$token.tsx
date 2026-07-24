@@ -1,15 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  Link,
   createFileRoute,
+  Link,
   useNavigate,
   useRouteContext,
 } from '@tanstack/react-router'
-import { useEffect, useState, type FormEvent } from 'react'
+import { type FormEvent, useEffect, useState } from 'react'
 
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { Button } from '@/components/ui/button.tsx'
+import { Input } from '@/components/ui/input.tsx'
+import { Label } from '@/components/ui/label.tsx'
 import {
   ApiError,
   acceptLaneInvite,
@@ -19,8 +19,8 @@ import {
   meQueryKey,
   signupLaneInvite,
   startGoogleLaneInvite,
-} from '@/lib/api'
-import { messageForOAuthError } from '@/lib/oauth-errors'
+} from '@/lib/api.ts'
+import { messageForOAuthError } from '@/lib/oauth-errors.ts'
 
 type InviteSearch = {
   oauth_error?: string
@@ -64,7 +64,13 @@ function LaneInviteLandingPage() {
 
   const alreadyParticipantQuery = useQuery({
     queryKey: ['lane-invite-already', invite?.lane_id, meQuery.data?.user.id],
-    queryFn: () => getLane(invite!.lane_id),
+    queryFn: () => {
+      const laneId = invite?.lane_id
+      if (!laneId) {
+        throw new Error('lane id required')
+      }
+      return getLane(laneId)
+    },
     enabled: Boolean(loggedIn && invite?.lane_id && invite.pending),
     retry: false,
   })
@@ -108,9 +114,7 @@ function LaneInviteLandingPage() {
       })
     },
     onError: (error) => {
-      setFormError(
-        error instanceof ApiError ? error.message : 'Signup failed',
-      )
+      setFormError(error instanceof ApiError ? error.message : 'Signup failed')
     },
   })
 
@@ -120,8 +124,7 @@ function LaneInviteLandingPage() {
     signupMutation.mutate()
   }
 
-  const inviter =
-    invite?.invited_by_display_name?.trim() || 'Someone'
+  const inviter = invite?.invited_by_display_name?.trim() || 'Someone'
 
   return (
     <div className="mx-auto w-full max-w-md space-y-6 py-16 px-4">
@@ -148,7 +151,9 @@ function LaneInviteLandingPage() {
         )}
       </div>
 
-      {formError ? <p className="text-destructive text-sm">{formError}</p> : null}
+      {formError ? (
+        <p className="text-destructive text-sm">{formError}</p>
+      ) : null}
 
       {invite && !invite.pending ? (
         <p className="text-muted-foreground text-sm">
@@ -191,7 +196,7 @@ function LaneInviteLandingPage() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                required
+                required={true}
               />
             </div>
             <div className="space-y-2">
@@ -200,7 +205,7 @@ function LaneInviteLandingPage() {
                 id="invite-display-name"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                required
+                required={true}
               />
             </div>
             <div className="space-y-2">
@@ -211,7 +216,7 @@ function LaneInviteLandingPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 minLength={8}
-                required
+                required={true}
               />
             </div>
             <Button type="submit" disabled={signupMutation.isPending}>

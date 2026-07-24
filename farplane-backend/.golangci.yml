@@ -1,0 +1,185 @@
+version: "2"
+
+# Full Credo-like set from .agents/skills/golang-lint/assets/.golangci.yml,
+# with stricter complexity thresholds for the Farplane agent gauntlet.
+
+run:
+  concurrency: 4
+  timeout: 5m
+  tests: true
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 50
+
+linters:
+  enable:
+    # correctness
+    - govet
+    - staticcheck
+    - unused
+    - errcheck
+    - errorlint
+    - nilerr
+    - forcetypeassert
+    - copyloopvar
+    - durationcheck
+    - reassign
+    # style
+    - gocritic
+    - revive
+    - wsl_v5
+    - whitespace
+    - godot
+    - misspell
+    - dupword
+    - predeclared
+    - errname
+    - asciicheck
+    # complexity
+    - gocyclo
+    - nestif
+    - funlen
+    - dupl
+    # performance
+    - perfsprint
+    - unconvert
+    - ineffassign
+    - goconst
+    # security & resources
+    - gosec
+    - bidichk
+    - bodyclose
+    - noctx
+    - containedctx
+    - fatcontext
+    - sqlclosecheck
+    - rowserrcheck
+    # logging
+    - sloglint
+    - loggercheck
+    # testing
+    - testifylint
+    - thelper
+    - usetesting
+    - paralleltest
+    # modernization & meta
+    - modernize
+    - exptostd
+    - intrange
+    - usestdlibvars
+    - exhaustive
+    - nolintlint
+
+  disable:
+    - lll # line length — handled by gofumpt
+    - prealloc # high false-positive rate without profiles
+    - wrapcheck # too noisy wrapping every external error
+    - err113 # forces package-level sentinels
+    - mnd # magic numbers — extremely noisy
+    - iface # immature / too opinionated
+    - nakedret # fine for short functions
+    - noinlineerr # bans idiomatic if-err init
+    - gocognit # redundant with gocyclo + nestif
+    - cyclop # redundant with gocyclo
+    - depguard # needs per-project allowlists
+    - goheader # no project header policy
+    - importas # no alias policy
+    - funcorder # too opinionated
+    - godoclint # overlaps godot/revive
+    - varnamelen # Go favors short names
+    - exhaustruct # breaks zero-value idiom
+    - gochecknoglobals # valid package-level state exists
+    - gochecknoinits # valid init() uses exist
+    - unparam # medium false-positive rate
+    - makezero # often wrong about intent
+    - testpackage # too opinionated as default
+    - embeddedstructfieldcheck
+    - iotamixing
+    - unqueryvet
+    - recvcheck # overlaps gocritic
+    - mirror
+    - protogetter # not a protobuf project
+    - spancheck # no OpenTelemetry spans yet
+    - zerologlint # uses log/slog, not zerolog
+
+  exclusions:
+    paths:
+      - vendor$
+      - third_party$
+      - examples$
+      - ^features/
+    rules:
+      # Shared Postgres fixtures; parallel races the test DB.
+      - path: internal/(httpapi|store|db)/
+        linters:
+          - paralleltest
+      - path: _test\.go$
+        linters:
+          - funlen
+          - gocyclo
+          - nestif
+          - dupl
+          - errcheck
+          - gosec
+          - containedctx
+          - goconst
+          - paralleltest
+          - noctx
+          - bodyclose
+
+  settings:
+    dupl:
+      threshold: 120
+    errcheck:
+      check-type-assertions: true
+      exclude-functions:
+        - io.Copy
+        - (*os.File).Close
+    funlen:
+      lines: 80
+      statements: 50
+    goconst:
+      min-len: 3
+      min-occurrences: 4
+      ignore-tests: true
+    gocyclo:
+      min-complexity: 10
+    nestif:
+      min-complexity: 4
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+    revive:
+      severity: error
+    wsl_v5:
+      allow-first-in-block: true
+      allow-whole-block: false
+      branch-max-lines: 2
+    gosec:
+      excludes:
+        # G104 covered by errcheck; keep the rest.
+        - G104
+    paralleltest:
+      ignore-missing: false
+      ignore-missing-subtests: false
+
+formatters:
+  enable:
+    - gofmt
+    - gofumpt
+  disable:
+    - gci
+    - goimports
+    - golines
+    - swaggo
+  settings:
+    gofumpt:
+      extra-rules: true
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+      - features$

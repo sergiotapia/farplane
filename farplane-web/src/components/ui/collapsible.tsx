@@ -1,8 +1,8 @@
-"use client"
+'use client'
 
-import { Collapsible as CollapsiblePrimitive } from "@base-ui/react/collapsible"
+import { Collapsible as CollapsiblePrimitive } from '@base-ui/react/collapsible'
 
-import { cn } from "@/lib/utils"
+import { cn } from '@/lib/utils.ts'
 
 function Collapsible({ ...props }: CollapsiblePrimitive.Root.Props) {
   return <CollapsiblePrimitive.Root data-slot="collapsible" {...props} />
@@ -22,14 +22,14 @@ function CollapsibleContent({
     <CollapsiblePrimitive.Panel
       data-slot="collapsible-content"
       className={cn(
-        "h-[var(--collapsible-panel-height)] overflow-hidden transition-[height] duration-200 ease-out",
-        "data-starting-style:h-0 data-ending-style:h-0",
+        'h-[var(--collapsible-panel-height)] overflow-hidden transition-[height] duration-200 ease-out',
+        'data-starting-style:h-0 data-ending-style:h-0',
         "[&[hidden]:not([hidden='until-found'])]:hidden",
-        className
+        className,
       )}
       {...props}
     />
   )
 }
 
-export { Collapsible, CollapsibleTrigger, CollapsibleContent }
+export { Collapsible, CollapsibleContent, CollapsibleTrigger }

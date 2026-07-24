@@ -19,13 +19,16 @@ func (s *Store) EnsureScratchEnvironment(ctx context.Context, organizationID, up
 	if err == nil {
 		return existing, nil
 	}
+
 	if !errors.Is(err, ErrNotFound) {
 		return models.ScratchEnvironment{}, err
 	}
+
 	text, err := lanetemplate.DefaultDockerfile()
 	if err != nil {
 		return models.ScratchEnvironment{}, fmt.Errorf("default dockerfile: %w", err)
 	}
+
 	return s.UpsertScratchEnvironment(ctx, UpsertScratchEnvironmentInput{
 		OrganizationID:  organizationID,
 		DockerfileText:  text,
@@ -41,13 +44,16 @@ func (s *Store) GetScratchEnvironment(ctx context.Context, organizationID string
 		FROM scratch_environments
 		WHERE organization_id = $1
 	`
+
 	env, err := scanScratchEnvironment(s.pool.QueryRow(ctx, q, organizationID))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return models.ScratchEnvironment{}, ErrNotFound
 	}
+
 	if err != nil {
 		return models.ScratchEnvironment{}, fmt.Errorf("get scratch environment: %w", err)
 	}
+
 	return env, nil
 }
 
@@ -64,13 +70,16 @@ type UpsertScratchEnvironmentInput struct {
 func (s *Store) UpsertScratchEnvironment(ctx context.Context, in UpsertScratchEnvironmentInput) (models.ScratchEnvironment, error) {
 	text := strings.TrimSpace(in.DockerfileText)
 	if text == "" {
-		return models.ScratchEnvironment{}, fmt.Errorf("dockerfile_text is required")
+		return models.ScratchEnvironment{}, errors.New("dockerfile_text is required")
 	}
+
 	now := time.Now().UTC()
+
 	var updatedBy *string
 	if in.UpdatedByUserID != "" {
 		updatedBy = &in.UpdatedByUserID
 	}
+
 	const q = `
 		INSERT INTO scratch_environments (
 			organization_id, dockerfile_text, validation_status, last_validation_log,
@@ -87,6 +96,7 @@ func (s *Store) UpsertScratchEnvironment(ctx context.Context, in UpsertScratchEn
 		RETURNING organization_id, dockerfile_text, validation_status, validated_image_reference,
 			last_validation_log, validated_at, updated_by_user_id, created_at, updated_at
 	`
+
 	env, err := scanScratchEnvironment(s.pool.QueryRow(
 		ctx, q,
 		in.OrganizationID, text, models.EnvironmentValidationInvalid,
@@ -95,22 +105,30 @@ func (s *Store) UpsertScratchEnvironment(ctx context.Context, in UpsertScratchEn
 	if err != nil {
 		return models.ScratchEnvironment{}, fmt.Errorf("upsert scratch environment: %w", err)
 	}
+
 	return env, nil
 }
 
 // CompleteScratchEnvironmentValidation stores build result as valid or invalid.
+//
+//nolint:dupl // scratch/project validation updates share the same status transition shape.
 func (s *Store) CompleteScratchEnvironmentValidation(
 	ctx context.Context, organizationID string, ok bool, imageRef, logText string,
 ) (models.ScratchEnvironment, error) {
 	now := time.Now().UTC()
 	status := models.EnvironmentValidationInvalid
-	var validatedAt *time.Time
-	var image *string
+
+	var (
+		validatedAt *time.Time
+		image       *string
+	)
+
 	if ok {
 		status = models.EnvironmentValidationValid
 		validatedAt = &now
 		image = &imageRef
 	}
+
 	const q = `
 		UPDATE scratch_environments
 		SET validation_status = $2,
@@ -122,15 +140,18 @@ func (s *Store) CompleteScratchEnvironmentValidation(
 		RETURNING organization_id, dockerfile_text, validation_status, validated_image_reference,
 			last_validation_log, validated_at, updated_by_user_id, created_at, updated_at
 	`
+
 	env, err := scanScratchEnvironment(s.pool.QueryRow(
 		ctx, q, organizationID, status, image, logText, validatedAt, now,
 	))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return models.ScratchEnvironment{}, ErrNotFound
 	}
+
 	if err != nil {
 		return models.ScratchEnvironment{}, fmt.Errorf("complete scratch environment validation: %w", err)
 	}
+
 	return env, nil
 }
 
@@ -143,13 +164,16 @@ func (s *Store) GetProjectEnvironment(ctx context.Context, projectID string) (mo
 		FROM project_environments
 		WHERE project_id = $1
 	`
+
 	env, err := scanProjectEnvironment(s.pool.QueryRow(ctx, q, projectID))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return models.ProjectEnvironment{}, ErrNotFound
 	}
+
 	if err != nil {
 		return models.ProjectEnvironment{}, fmt.Errorf("get project environment: %w", err)
 	}
+
 	return env, nil
 }
 
@@ -168,17 +192,21 @@ type UpsertProjectEnvironmentInput struct {
 func (s *Store) UpsertProjectEnvironment(ctx context.Context, in UpsertProjectEnvironmentInput) (models.ProjectEnvironment, error) {
 	text := strings.TrimSpace(in.DockerfileText)
 	if text == "" {
-		return models.ProjectEnvironment{}, fmt.Errorf("dockerfile_text is required")
+		return models.ProjectEnvironment{}, errors.New("dockerfile_text is required")
 	}
+
 	generationStatus := strings.TrimSpace(in.GenerationStatus)
 	if generationStatus == "" {
 		generationStatus = models.EnvironmentGenerationIdle
 	}
+
 	now := time.Now().UTC()
+
 	var updatedBy *string
 	if in.UpdatedByUserID != "" {
 		updatedBy = &in.UpdatedByUserID
 	}
+
 	const q = `
 		INSERT INTO project_environments (
 			project_id, organization_id, dockerfile_text, validation_status,
@@ -199,6 +227,7 @@ func (s *Store) UpsertProjectEnvironment(ctx context.Context, in UpsertProjectEn
 			validated_image_reference, last_validation_log, validated_at,
 			generation_status, generation_log, updated_by_user_id, created_at, updated_at
 	`
+
 	env, err := scanProjectEnvironment(s.pool.QueryRow(
 		ctx, q,
 		in.ProjectID, in.OrganizationID, text, models.EnvironmentValidationInvalid,
@@ -207,6 +236,7 @@ func (s *Store) UpsertProjectEnvironment(ctx context.Context, in UpsertProjectEn
 	if err != nil {
 		return models.ProjectEnvironment{}, fmt.Errorf("upsert project environment: %w", err)
 	}
+
 	return env, nil
 }
 
@@ -218,10 +248,12 @@ func (s *Store) MarkProjectEnvironmentGenerating(
 	existing, err := s.GetProjectEnvironment(ctx, projectID)
 	if err == nil {
 		now := time.Now().UTC()
+
 		var updatedBy *string
 		if updatedByUserID != "" {
 			updatedBy = &updatedByUserID
 		}
+
 		const q = `
 			UPDATE project_environments
 			SET generation_status = $2,
@@ -233,22 +265,28 @@ func (s *Store) MarkProjectEnvironmentGenerating(
 				validated_image_reference, last_validation_log, validated_at,
 				generation_status, generation_log, updated_by_user_id, created_at, updated_at
 		`
+
 		env, err := scanProjectEnvironment(s.pool.QueryRow(
 			ctx, q, projectID, models.EnvironmentGenerationGenerating, updatedBy, now,
 		))
 		if err != nil {
 			return models.ProjectEnvironment{}, fmt.Errorf("mark project environment generating: %w", err)
 		}
+
 		return env, nil
 	}
+
 	if !errors.Is(err, ErrNotFound) {
 		return models.ProjectEnvironment{}, err
 	}
+
 	_ = existing
+
 	text, err := lanetemplate.DefaultDockerfile()
 	if err != nil {
 		return models.ProjectEnvironment{}, fmt.Errorf("default dockerfile: %w", err)
 	}
+
 	return s.UpsertProjectEnvironment(ctx, UpsertProjectEnvironmentInput{
 		ProjectID:        projectID,
 		OrganizationID:   organizationID,
@@ -267,10 +305,12 @@ func (s *Store) CompleteProjectEnvironmentGeneration(
 	updatedByUserID string,
 ) (models.ProjectEnvironment, error) {
 	now := time.Now().UTC()
+
 	var updatedBy *string
 	if updatedByUserID != "" {
 		updatedBy = &updatedByUserID
 	}
+
 	if !ok {
 		const q = `
 			UPDATE project_environments
@@ -283,21 +323,26 @@ func (s *Store) CompleteProjectEnvironmentGeneration(
 				validated_image_reference, last_validation_log, validated_at,
 				generation_status, generation_log, updated_by_user_id, created_at, updated_at
 		`
+
 		env, err := scanProjectEnvironment(s.pool.QueryRow(
 			ctx, q, projectID, models.EnvironmentGenerationFailed, generationLog, updatedBy, now,
 		))
 		if errors.Is(err, pgx.ErrNoRows) {
 			return models.ProjectEnvironment{}, ErrNotFound
 		}
+
 		if err != nil {
 			return models.ProjectEnvironment{}, fmt.Errorf("complete project environment generation: %w", err)
 		}
+
 		return env, nil
 	}
+
 	text := strings.TrimSpace(dockerfileText)
 	if text == "" {
-		return models.ProjectEnvironment{}, fmt.Errorf("dockerfile_text is required")
+		return models.ProjectEnvironment{}, errors.New("dockerfile_text is required")
 	}
+
 	const q = `
 		UPDATE project_environments
 		SET dockerfile_text = $2,
@@ -313,6 +358,7 @@ func (s *Store) CompleteProjectEnvironmentGeneration(
 			validated_image_reference, last_validation_log, validated_at,
 			generation_status, generation_log, updated_by_user_id, created_at, updated_at
 	`
+
 	env, err := scanProjectEnvironment(s.pool.QueryRow(
 		ctx, q,
 		projectID, text, models.EnvironmentValidationInvalid,
@@ -321,25 +367,34 @@ func (s *Store) CompleteProjectEnvironmentGeneration(
 	if errors.Is(err, pgx.ErrNoRows) {
 		return models.ProjectEnvironment{}, ErrNotFound
 	}
+
 	if err != nil {
 		return models.ProjectEnvironment{}, fmt.Errorf("complete project environment generation: %w", err)
 	}
+
 	return env, nil
 }
 
 // CompleteProjectEnvironmentValidation stores build result as valid or invalid.
+//
+//nolint:dupl // scratch/project validation updates share the same status transition shape.
 func (s *Store) CompleteProjectEnvironmentValidation(
 	ctx context.Context, projectID string, ok bool, imageRef, logText string,
 ) (models.ProjectEnvironment, error) {
 	now := time.Now().UTC()
 	status := models.EnvironmentValidationInvalid
-	var validatedAt *time.Time
-	var image *string
+
+	var (
+		validatedAt *time.Time
+		image       *string
+	)
+
 	if ok {
 		status = models.EnvironmentValidationValid
 		validatedAt = &now
 		image = &imageRef
 	}
+
 	const q = `
 		UPDATE project_environments
 		SET validation_status = $2,
@@ -352,33 +407,40 @@ func (s *Store) CompleteProjectEnvironmentValidation(
 			validated_image_reference, last_validation_log, validated_at,
 			generation_status, generation_log, updated_by_user_id, created_at, updated_at
 	`
+
 	env, err := scanProjectEnvironment(s.pool.QueryRow(
 		ctx, q, projectID, status, image, logText, validatedAt, now,
 	))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return models.ProjectEnvironment{}, ErrNotFound
 	}
+
 	if err != nil {
 		return models.ProjectEnvironment{}, fmt.Errorf("complete project environment validation: %w", err)
 	}
+
 	return env, nil
 }
 
 // DeleteProjectEnvironment removes the Project Environment row.
 func (s *Store) DeleteProjectEnvironment(ctx context.Context, projectID string) error {
 	const q = `DELETE FROM project_environments WHERE project_id = $1`
+
 	tag, err := s.pool.Exec(ctx, q, projectID)
 	if err != nil {
 		return fmt.Errorf("delete project environment: %w", err)
 	}
+
 	if tag.RowsAffected() == 0 {
 		return ErrNotFound
 	}
+
 	return nil
 }
 
 func scanScratchEnvironment(row scannable) (models.ScratchEnvironment, error) {
 	var env models.ScratchEnvironment
+
 	err := row.Scan(
 		&env.OrganizationID, &env.DockerfileText, &env.ValidationStatus,
 		&env.ValidatedImageReference, &env.LastValidationLog, &env.ValidatedAt,
@@ -387,17 +449,21 @@ func scanScratchEnvironment(row scannable) (models.ScratchEnvironment, error) {
 	if err != nil {
 		return models.ScratchEnvironment{}, err
 	}
+
 	env.CreatedAt = env.CreatedAt.UTC()
+
 	env.UpdatedAt = env.UpdatedAt.UTC()
 	if env.ValidatedAt != nil {
 		u := env.ValidatedAt.UTC()
 		env.ValidatedAt = &u
 	}
+
 	return env, nil
 }
 
 func scanProjectEnvironment(row scannable) (models.ProjectEnvironment, error) {
 	var env models.ProjectEnvironment
+
 	err := row.Scan(
 		&env.ProjectID, &env.OrganizationID, &env.DockerfileText, &env.ValidationStatus,
 		&env.ValidatedImageReference, &env.LastValidationLog, &env.ValidatedAt,
@@ -407,11 +473,14 @@ func scanProjectEnvironment(row scannable) (models.ProjectEnvironment, error) {
 	if err != nil {
 		return models.ProjectEnvironment{}, err
 	}
+
 	env.CreatedAt = env.CreatedAt.UTC()
+
 	env.UpdatedAt = env.UpdatedAt.UTC()
 	if env.ValidatedAt != nil {
 		u := env.ValidatedAt.UTC()
 		env.ValidatedAt = &u
 	}
+
 	return env, nil
 }

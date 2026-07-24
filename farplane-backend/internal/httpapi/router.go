@@ -27,6 +27,7 @@ func WithGitHubApp(client GitHubApp) Option {
 	return func(a *api) {
 		a.githubMu.Lock()
 		defer a.githubMu.Unlock()
+
 		a.github = client
 		a.githubForced = true
 	}
@@ -71,7 +72,7 @@ func WithProjectWorkspaceClone(
 
 // New builds the Gin engine with middleware and API routes for the local SPA.
 // pool may be nil in unit tests that do not hit the database.
-func New(pool *pgxpool.Pool, cfg config.Config, opts ...Option) *gin.Engine {
+func New(pool *pgxpool.Pool, cfg config.Config, opts ...Option) *gin.Engine { //nolint:funlen // route/wiring surface; split when rewriting
 	r := gin.New()
 	r.Use(gin.Logger(), gin.Recovery())
 
@@ -89,12 +90,15 @@ func New(pool *pgxpool.Pool, cfg config.Config, opts ...Option) *gin.Engine {
 	if pool != nil {
 		st = store.New(pool)
 	}
-	var rt = dockerruntime.New()
+
+	rt := dockerruntime.New()
 	hub := lanehub.New()
+
 	api := newAPI(cfg, st, rt, hub)
 	for _, opt := range opts {
 		opt(api)
 	}
+
 	authLimiter := newIPRateLimiter(30, time.Minute)
 
 	v1 := r.Group("/api/v1")

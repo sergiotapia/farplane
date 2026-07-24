@@ -1,5 +1,10 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Link, useNavigate, useRouteContext, useRouterState } from '@tanstack/react-router'
+import {
+  Link,
+  useNavigate,
+  useRouteContext,
+  useRouterState,
+} from '@tanstack/react-router'
 import {
   ContainerIcon,
   FolderKanbanIcon,
@@ -10,8 +15,8 @@ import {
   SettingsIcon,
 } from 'lucide-react'
 
-import { LanesNav } from '@/components/navigation/lanes-nav'
-import { Button } from '@/components/ui/button'
+import { LanesNav } from '@/components/navigation/lanes-nav.tsx'
+import { Button } from '@/components/ui/button.tsx'
 import {
   Sidebar,
   SidebarContent,
@@ -25,8 +30,8 @@ import {
   SidebarMenuItem,
   SidebarRail,
   SidebarSeparator,
-} from '@/components/ui/sidebar'
-import { meQueryKey, postLogout } from '@/lib/api'
+} from '@/components/ui/sidebar.tsx'
+import { meQueryKey, postLogout } from '@/lib/api.ts'
 
 const mainNavItems = [
   { to: '/', label: 'Home', icon: HomeIcon },
@@ -44,7 +49,9 @@ const settingsNavItems = [
 ] as const
 
 export function AppSidebar() {
-  const pathname = useRouterState({ select: (state) => state.location.pathname })
+  const pathname = useRouterState({
+    select: (state) => state.location.pathname,
+  })
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { me } = useRouteContext({ from: '/_app' })
@@ -139,8 +146,13 @@ export function AppSidebar() {
         <div className="flex flex-col gap-2 px-2 group-data-[collapsible=icon]:px-0">
           <div className="min-w-0 px-1 group-data-[collapsible=icon]:hidden">
             <p className="truncate text-sm font-medium">{user.display_name}</p>
-            <p className="text-muted-foreground truncate text-xs">{user.email}</p>
             <p className="text-muted-foreground truncate text-xs">
+              {user.email}
+            </p>
+            <p
+              data-testid="active-organization-name"
+              className="text-muted-foreground truncate text-xs"
+            >
               {organization.name}
             </p>
           </div>

@@ -1,0 +1,20 @@
+title = "Farplane gitleaks"
+
+[extend]
+useDefault = true
+
+# Strict: only synthetic test credentials and skill training fixtures are allowed.
+# Feature files and docs are not exempt — real secrets there must fail the gate.
+
+[[allowlists]]
+description = "Synthetic secrets in Go/_test.go unit tests"
+paths = [
+  '''(^|/)[^/]*_test\.go$''',
+]
+
+[[allowlists]]
+description = "Skill training fixtures may contain example credentials"
+paths = [
+  '''(^|/)\.agents/skills/''',
+  '''(^|/)agent/skills/''',
+]

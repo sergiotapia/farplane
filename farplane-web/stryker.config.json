@@ -1,0 +1,35 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "packageManager": "npm",
+  "testRunner": "vitest",
+  "checkers": [],
+  "mutate": [
+    "src/lib/api-errors.ts",
+    "src/lib/oauth-errors.ts",
+    "src/lib/roles.ts",
+    "src/lib/utils.ts"
+  ],
+  "ignorePatterns": [
+    "dist",
+    "coverage",
+    "e2e",
+    ".features-gen",
+    "playwright-report",
+    "test-results",
+    "reports"
+  ],
+  "vitest": {
+    "configFile": "vitest.config.ts"
+  },
+  "thresholds": {
+    "high": 99,
+    "low": 95,
+    "break": 95
+  },
+  "reporters": ["clear-text", "progress", "html"],
+  "htmlReporter": {
+    "fileName": "reports/mutation/mutation.html"
+  },
+  "concurrency": 2,
+  "timeoutMS": 60000
+}

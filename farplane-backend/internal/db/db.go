@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -11,7 +12,7 @@ import (
 // Open builds a pgx connection pool from a Postgres URL.
 func Open(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
 	if databaseURL == "" {
-		return nil, fmt.Errorf("database URL is empty")
+		return nil, errors.New("database URL is empty")
 	}
 
 	cfg, err := pgxpool.ParseConfig(databaseURL)
@@ -32,6 +33,7 @@ func Open(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
 
 	pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
+
 	if err := pool.Ping(pingCtx); err != nil {
 		pool.Close()
 		return nil, fmt.Errorf("ping database: %w", err)

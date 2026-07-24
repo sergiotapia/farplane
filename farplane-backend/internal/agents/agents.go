@@ -67,6 +67,7 @@ func Availability(setSecrets map[string]bool) []Agent {
 		a.Available = len(sources) > 0
 		out = append(out, a)
 	}
+
 	return out
 }
 
@@ -78,6 +79,7 @@ func RequiredSecretFor(provider string) string {
 			return a.RequiredSecret
 		}
 	}
+
 	return ""
 }
 

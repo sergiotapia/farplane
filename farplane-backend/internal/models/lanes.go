@@ -53,11 +53,11 @@ const (
 	LaneParticipantRoleParticipant = "participant"
 )
 
-// Well-known organization secret names.
+// Well-known organization secret names (env var names, not secret values).
 const (
-	SecretNameAnthropicAPIKey  = "ANTHROPIC_API_KEY"
-	SecretNameOpenAIAPIKey     = "OPENAI_API_KEY"
-	SecretNameOpenRouterAPIKey = "OPENROUTER_API_KEY"
+	SecretNameAnthropicAPIKey  = "ANTHROPIC_API_KEY"  //nolint:gosec // G101: name only.
+	SecretNameOpenAIAPIKey     = "OPENAI_API_KEY"     //nolint:gosec // G101: name only.
+	SecretNameOpenRouterAPIKey = "OPENROUTER_API_KEY" //nolint:gosec // G101: name only.
 )
 
 // Lane message event types.
@@ -170,9 +170,11 @@ func (i LaneInvite) IsPending(now time.Time) bool {
 	if i.RevokedAt != nil {
 		return false
 	}
+
 	if i.ExpiresAt != nil && !i.ExpiresAt.After(now) {
 		return false
 	}
+
 	return true
 }
 

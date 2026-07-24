@@ -46,15 +46,17 @@ func (a *api) googleOAuthConfig() *oauth2.Config {
 	}
 }
 
-func (a *api) handleGoogleStart(c *gin.Context) {
+func (a *api) handleGoogleStart(c *gin.Context) { //nolint:gocyclo,funlen // multi-branch orchestration; keep under threshold when rewriting
 	if !a.cfg.GoogleOAuthConfigured() {
 		c.JSON(http.StatusServiceUnavailable, gin.H{
-			"error": "google oauth is not configured",
+			jsonKeyError: "google oauth is not configured",
 		})
+
 		return
 	}
+
 	if a.store == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "database unavailable"})
+		c.JSON(http.StatusServiceUnavailable, gin.H{jsonKeyError: errDatabaseUnavailable})
 		return
 	}
 
@@ -62,66 +64,75 @@ func (a *api) handleGoogleStart(c *gin.Context) {
 	if intent == "" {
 		intent = auth.OAuthIntentLogin
 	}
+
 	orgName := trimNonEmpty(c.Query("organization_name"))
 	inviteToken := trimNonEmpty(c.Query("invite_token"))
 
 	switch intent {
 	case auth.OAuthIntentSetup:
 		if orgName == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "organization_name is required for setup"})
+			c.JSON(http.StatusBadRequest, gin.H{jsonKeyError: "organization_name is required for setup"})
 			return
 		}
+
 		if utf8.RuneCountInString(orgName) > 200 {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "organization_name is too long"})
+			c.JSON(http.StatusBadRequest, gin.H{jsonKeyError: "organization_name is too long"})
 			return
 		}
+
 		if !a.setupTokenOK(c, c.Query("setup_token")) {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid setup token"})
+			c.JSON(http.StatusUnauthorized, gin.H{jsonKeyError: "invalid setup token"})
 			return
 		}
+
 		needs, err := a.store.NeedsSetup(c.Request.Context())
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read setup status"})
+			c.JSON(http.StatusInternalServerError, gin.H{jsonKeyError: errSetupStatus})
 			return
 		}
+
 		if !needs {
-			c.JSON(http.StatusConflict, gin.H{"error": "setup already completed"})
+			c.JSON(http.StatusConflict, gin.H{jsonKeyError: "setup already completed"})
 			return
 		}
 	case auth.OAuthIntentLogin:
 		needs, err := a.store.NeedsSetup(c.Request.Context())
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read setup status"})
+			c.JSON(http.StatusInternalServerError, gin.H{jsonKeyError: errSetupStatus})
 			return
 		}
+
 		if needs {
 			c.Redirect(http.StatusFound, a.cfg.AppBaseURL+"/setup")
 			return
 		}
 	case auth.OAuthIntentLaneInvite:
 		if inviteToken == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invite_token is required"})
+			c.JSON(http.StatusBadRequest, gin.H{jsonKeyError: "invite_token is required"})
 			return
 		}
+
 		preview, err := a.store.GetLaneInvitePreview(c.Request.Context(), inviteToken)
 		if err != nil {
 			writeStoreError(c, err)
 			return
 		}
+
 		if !preview.Pending {
-			c.JSON(http.StatusConflict, gin.H{"error": "invite is not available"})
+			c.JSON(http.StatusConflict, gin.H{jsonKeyError: "invite is not available"})
 			return
 		}
 	default:
-		c.JSON(http.StatusBadRequest, gin.H{"error": "intent must be setup, login, or lane_invite"})
+		c.JSON(http.StatusBadRequest, gin.H{jsonKeyError: "intent must be setup, login, or lane_invite"})
 		return
 	}
 
 	nonce, err := auth.NewOAuthNonce()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to start oauth"})
+		c.JSON(http.StatusInternalServerError, gin.H{jsonKeyError: "failed to start oauth"})
 		return
 	}
+
 	state, err := auth.SignOAuthState(a.cfg.SessionSecret, auth.OAuthState{
 		Intent:           intent,
 		OrganizationName: orgName,
@@ -130,7 +141,7 @@ func (a *api) handleGoogleStart(c *gin.Context) {
 		ExpiresAtUnix:    time.Now().UTC().Add(oauthStateTTL).Unix(),
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to start oauth"})
+		c.JSON(http.StatusInternalServerError, gin.H{jsonKeyError: "failed to start oauth"})
 		return
 	}
 
@@ -139,11 +150,12 @@ func (a *api) handleGoogleStart(c *gin.Context) {
 	c.Redirect(http.StatusFound, authURL)
 }
 
-func (a *api) handleGoogleCallback(c *gin.Context) {
+func (a *api) handleGoogleCallback(c *gin.Context) { //nolint:gocyclo,funlen // multi-branch orchestration; keep under threshold when rewriting
 	if !a.cfg.GoogleOAuthConfigured() {
 		a.redirectOAuthError(c, "google_oauth_not_configured")
 		return
 	}
+
 	if a.store == nil {
 		a.redirectOAuthError(c, "database_unavailable")
 		return
@@ -152,6 +164,7 @@ func (a *api) handleGoogleCallback(c *gin.Context) {
 	if errMsg := c.Query("error"); errMsg != "" {
 		a.clearOAuthNonceCookie(c)
 		a.redirectOAuthError(c, "google_denied")
+
 		return
 	}
 
@@ -159,14 +172,18 @@ func (a *api) handleGoogleCallback(c *gin.Context) {
 	if err != nil {
 		a.clearOAuthNonceCookie(c)
 		a.redirectOAuthError(c, "invalid_state")
+
 		return
 	}
+
 	cookieNonce, err := c.Cookie(oauthNonceCookie)
 	if err != nil || cookieNonce == "" || subtle.ConstantTimeCompare([]byte(cookieNonce), []byte(state.Nonce)) != 1 {
 		a.clearOAuthNonceCookie(c)
 		a.redirectOAuthError(c, "invalid_state")
+
 		return
 	}
+
 	a.clearOAuthNonceCookie(c)
 
 	code := c.Query("code")
@@ -176,20 +193,24 @@ func (a *api) handleGoogleCallback(c *gin.Context) {
 	}
 
 	ctx := c.Request.Context()
+
 	tok, err := a.googleOAuthConfig().Exchange(ctx, code)
 	if err != nil {
 		a.redirectOAuthError(c, "token_exchange_failed")
 		return
 	}
+
 	info, err := fetchGoogleUserInfo(ctx, tok.AccessToken)
 	if err != nil {
 		a.redirectOAuthError(c, "userinfo_failed")
 		return
 	}
+
 	if info.Sub == "" || info.Email == "" || !info.EmailVerified {
 		a.redirectOAuthError(c, "incomplete_profile")
 		return
 	}
+
 	email, emailOK := normalizeEmail(info.Email)
 	if !emailOK {
 		a.redirectOAuthError(c, "incomplete_profile")
@@ -200,9 +221,11 @@ func (a *api) handleGoogleCallback(c *gin.Context) {
 	if displayName == "" {
 		displayName = email
 	}
+
 	if utf8.RuneCountInString(displayName) > 200 {
 		displayName = string([]rune(displayName)[:200])
 	}
+
 	var avatarURL *string
 	if pic := strings.TrimSpace(info.Picture); pic != "" && strings.HasPrefix(strings.ToLower(pic), "https://") {
 		avatarURL = &pic
@@ -215,7 +238,9 @@ func (a *api) handleGoogleCallback(c *gin.Context) {
 			a.redirectOAuthError(c, "session_failed")
 			return
 		}
+
 		expiresAt := time.Now().UTC().Add(a.cfg.SessionTTL)
+
 		_, err = a.store.CompleteGoogleSetup(ctx, store.SetupGoogleInput{
 			OrganizationName: state.OrganizationName,
 			Email:            email,
@@ -230,11 +255,15 @@ func (a *api) handleGoogleCallback(c *gin.Context) {
 				a.redirectOAuthError(c, "setup_already_completed")
 				return
 			}
+
 			a.redirectOAuthError(c, "setup_failed")
+
 			return
 		}
+
 		a.setSessionCookie(c, token, expiresAt)
 		c.Redirect(http.StatusFound, a.cfg.AppBaseURL+"/")
+
 		return
 
 	case auth.OAuthIntentLogin:
@@ -244,16 +273,21 @@ func (a *api) handleGoogleCallback(c *gin.Context) {
 				a.redirectOAuthError(c, "account_not_found")
 				return
 			}
+
 			a.redirectOAuthError(c, "login_failed")
+
 			return
 		}
+
 		token, expiresAt, err := a.createSessionForUser(c, userID)
 		if err != nil {
 			a.redirectOAuthError(c, "session_failed")
 			return
 		}
+
 		a.setSessionCookie(c, token, expiresAt)
 		c.Redirect(http.StatusFound, a.cfg.AppBaseURL+"/")
+
 		return
 
 	case auth.OAuthIntentLaneInvite:
@@ -261,12 +295,15 @@ func (a *api) handleGoogleCallback(c *gin.Context) {
 			a.redirectOAuthError(c, "invalid_invite")
 			return
 		}
+
 		token, err := auth.NewSessionToken()
 		if err != nil {
 			a.redirectLaneInviteOAuthError(c, state.InviteToken, "session_failed")
 			return
 		}
+
 		expiresAt := time.Now().UTC().Add(a.cfg.SessionTTL)
+
 		result, err := a.store.CompleteGoogleLaneInvite(ctx, store.LaneInviteGoogleInput{
 			Token:            state.InviteToken,
 			Email:            email,
@@ -281,12 +318,16 @@ func (a *api) handleGoogleCallback(c *gin.Context) {
 				a.redirectLaneInviteOAuthError(c, state.InviteToken, "invite_unavailable")
 				return
 			}
+
 			a.redirectLaneInviteOAuthError(c, state.InviteToken, "invite_failed")
+
 			return
 		}
+
 		a.setSessionCookie(c, token, expiresAt)
 		a.broadcastInviteJoined(result.Invite.LaneID, result.User)
 		c.Redirect(http.StatusFound, a.cfg.AppBaseURL+"/lanes/"+result.Invite.LaneID)
+
 		return
 
 	default:
@@ -299,11 +340,13 @@ func (a *api) redirectOAuthError(c *gin.Context, code string) {
 	if strings.HasPrefix(code, "setup_") {
 		path = "/setup"
 	}
+
 	u, err := url.Parse(a.cfg.AppBaseURL + path)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": code})
+		c.JSON(http.StatusBadRequest, gin.H{jsonKeyError: code})
 		return
 	}
+
 	q := u.Query()
 	q.Set("oauth_error", code)
 	u.RawQuery = q.Encode()
@@ -313,9 +356,10 @@ func (a *api) redirectOAuthError(c *gin.Context, code string) {
 func (a *api) redirectLaneInviteOAuthError(c *gin.Context, inviteToken, code string) {
 	u, err := url.Parse(a.cfg.AppBaseURL + "/lane-invites/" + inviteToken)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": code})
+		c.JSON(http.StatusBadRequest, gin.H{jsonKeyError: code})
 		return
 	}
+
 	q := u.Query()
 	q.Set("oauth_error", code)
 	u.RawQuery = q.Encode()
@@ -345,6 +389,7 @@ func fetchGoogleUserInfo(ctx context.Context, accessToken string) (googleUserInf
 	if err != nil {
 		return googleUserInfo{}, err
 	}
+
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 
 	resp, err := http.DefaultClient.Do(req)
@@ -357,6 +402,7 @@ func fetchGoogleUserInfo(ctx context.Context, accessToken string) (googleUserInf
 	if err != nil {
 		return googleUserInfo{}, err
 	}
+
 	if resp.StatusCode != http.StatusOK {
 		return googleUserInfo{}, fmt.Errorf("userinfo status %d: %s", resp.StatusCode, string(body))
 	}
@@ -365,5 +411,6 @@ func fetchGoogleUserInfo(ctx context.Context, accessToken string) (googleUserInf
 	if err := json.Unmarshal(body, &info); err != nil {
 		return googleUserInfo{}, err
 	}
+
 	return info, nil
 }

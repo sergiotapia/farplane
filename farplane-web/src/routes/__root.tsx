@@ -1,13 +1,17 @@
+import { TanStackDevtools } from '@tanstack/react-devtools'
+import type { QueryClient } from '@tanstack/react-query'
 import {
-  Outlet,
   createRootRouteWithContext,
+  Outlet,
   redirect,
 } from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
-import { TanStackDevtools } from '@tanstack/react-devtools'
-import type { QueryClient } from '@tanstack/react-query'
 
-import { getSetupStatus, setupStatusQueryKey, type SetupStatus } from '@/lib/api'
+import {
+  getSetupStatus,
+  type SetupStatus,
+  setupStatusQueryKey,
+} from '@/lib/api.ts'
 
 import '../styles.css'
 

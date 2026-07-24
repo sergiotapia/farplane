@@ -2,9 +2,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useRouteContext } from '@tanstack/react-router'
 import { useMemo, useState } from 'react'
 
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { Button } from '@/components/ui/button.tsx'
+import { Input } from '@/components/ui/input.tsx'
+import { Label } from '@/components/ui/label.tsx'
 import {
   disconnectGitHubInstallation,
   getGitHubInstallations,
@@ -12,8 +12,9 @@ import {
   githubRepositoriesQueryKey,
   startGitHubAppManifest,
   startGitHubInstall,
-} from '@/lib/api'
-import { messageForGitHubError } from '@/lib/oauth-errors'
+} from '@/lib/api.ts'
+import { messageForGitHubError } from '@/lib/oauth-errors.ts'
+import { canManageGitHubApp } from '@/lib/roles.ts'
 
 type GitHubSettingsSearch = {
   github?: string
@@ -43,8 +44,7 @@ function GitHubSettingsPage() {
     queryFn: getGitHubInstallations,
   })
 
-  const canManageApp =
-    me.organization.role === 'owner' || me.organization.role === 'admin'
+  const canManageApp = canManageGitHubApp(me.organization.role)
 
   const manifestMutation = useMutation({
     mutationFn: () => startGitHubAppManifest(githubOrgLogin),
@@ -74,8 +74,7 @@ function GitHubSettingsPage() {
   const installations = installationsQuery.data?.installations ?? []
   const configured = installationsQuery.data?.configured ?? false
   const apiBaseURL = installationsQuery.data?.api_base_url ?? ''
-  const apiBaseURLPublic =
-    installationsQuery.data?.api_base_url_public ?? false
+  const apiBaseURLPublic = installationsQuery.data?.api_base_url_public ?? false
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-6">
@@ -113,10 +112,12 @@ function GitHubSettingsPage() {
         </p>
       ) : null}
 
-      {!configured && !installationsQuery.isLoading ? (
+      {configured || installationsQuery.isLoading ? null : (
         <div className="space-y-4 rounded-md border p-4">
           <div className="space-y-1">
-            <h2 className="text-lg font-medium">Create the Farplane AI GitHub App</h2>
+            <h2 className="text-lg font-medium">
+              Create the Farplane AI GitHub App
+            </h2>
             <p className="text-muted-foreground text-sm">
               GitHub will open with the correct permissions, webhook, and
               callback URLs for this install. The App is named uniquely for this
@@ -139,9 +140,7 @@ function GitHubSettingsPage() {
           <Button
             type="button"
             disabled={
-              !canManageApp ||
-              !apiBaseURLPublic ||
-              manifestMutation.isPending
+              !(canManageApp && apiBaseURLPublic) || manifestMutation.isPending
             }
             onClick={() => manifestMutation.mutate()}
           >
@@ -149,25 +148,27 @@ function GitHubSettingsPage() {
               ? 'Opening GitHub…'
               : 'Create Farplane AI GitHub App'}
           </Button>
-          {!canManageApp ? (
+          {canManageApp ? null : (
             <p className="text-muted-foreground text-xs">
               Ask an owner or admin to create the GitHub App for this install.
             </p>
-          ) : null}
+          )}
           <p className="text-muted-foreground text-xs">
             Manifest webhook/callback base:{' '}
-            <code className="text-xs break-all">{apiBaseURL || '(unknown)'}</code>
+            <code className="text-xs break-all">
+              {apiBaseURL || '(unknown)'}
+            </code>
           </p>
-          {!apiBaseURLPublic ? (
+          {apiBaseURLPublic ? null : (
             <p className="text-destructive text-xs">
               That URL is not a public https URL. Set{' '}
               <code className="text-xs">APP_API_BASE_URL</code> in the repo{' '}
-              <code className="text-xs">.env</code> to your ngrok https URL, then
-              restart <code className="text-xs">make backend</code>.
+              <code className="text-xs">.env</code> to your ngrok https URL,
+              then restart <code className="text-xs">make backend</code>.
             </p>
-          ) : null}
+          )}
         </div>
-      ) : null}
+      )}
 
       {configured ? (
         <div className="space-y-3">
@@ -204,8 +205,7 @@ function GitHubSettingsPage() {
           {installations.map((installation) => {
             const canDisconnect =
               installation.connected_by_user_id === me.user.id ||
-              me.organization.role === 'owner' ||
-              me.organization.role === 'admin'
+              canManageGitHubApp(me.organization.role)
             return (
               <li
                 key={installation.id}
@@ -228,9 +228,7 @@ function GitHubSettingsPage() {
                     variant="outline"
                     size="sm"
                     disabled={disconnectMutation.isPending}
-                    onClick={() =>
-                      disconnectMutation.mutate(installation.id)
-                    }
+                    onClick={() => disconnectMutation.mutate(installation.id)}
                   >
                     Disconnect
                   </Button>

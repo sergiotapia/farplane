@@ -20,6 +20,7 @@ func stringPtr(s string) *string {
 	if s == "" {
 		return nil
 	}
+
 	return &s
 }
 
@@ -27,8 +28,10 @@ func cloneStrings(in []string) []string {
 	if len(in) == 0 {
 		return []string{}
 	}
+
 	out := make([]string, len(in))
 	copy(out, in)
+
 	return out
 }
 
@@ -36,13 +39,16 @@ func cloneModelOptions(in []ModelOption) []ModelOption {
 	if len(in) == 0 {
 		return []ModelOption{}
 	}
+
 	out := make([]ModelOption, len(in))
 	for i, opt := range in {
 		out[i] = opt
+
 		out[i].ReasoningEfforts = cloneStrings(opt.ReasoningEfforts)
 		if opt.DefaultReasoningEffort != nil {
 			out[i].DefaultReasoningEffort = stringPtr(*opt.DefaultReasoningEffort)
 		}
 	}
+
 	return out
 }

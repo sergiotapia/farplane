@@ -1,6 +1,15 @@
 [tools]
-go = "1.25.7"
+go = "1.25.12"
 bun = "1.3"
+# dependency-cruiser supports ^22||^24||>=26 (system Node 25 is outside that range)
+node = "24.12.0"
+golangci-lint = "2.12.2"
+gofumpt = "0.10.0"
+gitleaks = "8.30.1"
+"github:fe3dback/go-arch-lint" = "v1.16.0"
+"github:szhekpisov/gomutants" = "v0.4.0"
+"github:mach6/go-covercheck" = "v0.6.1"
+"go:golang.org/x/vuln/cmd/govulncheck" = "v1.6.0"
 
 [tasks.backend]
 description = "Run the Go control plane"

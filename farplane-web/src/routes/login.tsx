@@ -6,19 +6,19 @@ import {
   useNavigate,
   useRouteContext,
 } from '@tanstack/react-router'
-import { useState, type FormEvent } from 'react'
+import { type FormEvent, useState } from 'react'
 
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { Button } from '@/components/ui/button.tsx'
+import { Input } from '@/components/ui/input.tsx'
+import { Label } from '@/components/ui/label.tsx'
 import {
   ApiError,
   getMe,
   meQueryKey,
   postLogin,
   startGoogleLogin,
-} from '@/lib/api'
-import { messageForOAuthError } from '@/lib/oauth-errors'
+} from '@/lib/api.ts'
+import { messageForOAuthError } from '@/lib/oauth-errors.ts'
 
 type LoginSearch = {
   oauth_error?: string
@@ -84,7 +84,7 @@ function LoginPage() {
     setFormError(null)
 
     const trimmedEmail = email.trim()
-    if (!trimmedEmail || !password) {
+    if (!(trimmedEmail && password)) {
       setFormError('Enter your email and password.')
       return
     }
@@ -115,7 +115,7 @@ function LoginPage() {
               autoComplete="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              required
+              required={true}
             />
           </div>
 
@@ -128,7 +128,7 @@ function LoginPage() {
               autoComplete="current-password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              required
+              required={true}
             />
           </div>
 
@@ -155,7 +155,7 @@ function LoginPage() {
             <div className="bg-border h-px flex-1" />
           </div>
 
-          {!googleConfigured ? (
+          {googleConfigured ? null : (
             <p
               className="bg-muted text-muted-foreground rounded-lg px-3 py-2 text-sm"
               role="status"
@@ -165,7 +165,7 @@ function LoginPage() {
               <code className="text-foreground">GOOGLE_CLIENT_SECRET</code> on
               the API, then restart it.
             </p>
-          ) : null}
+          )}
 
           <Button
             type="button"

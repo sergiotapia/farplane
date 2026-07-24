@@ -1,3 +1,5 @@
+import { errorMessage } from '@/lib/api-errors.ts'
+
 /** Base URL for the Farplane control plane API (local default). */
 export const API_BASE_URL =
   (typeof import.meta !== 'undefined' &&
@@ -61,22 +63,7 @@ async function parseJson(response: Response): Promise<unknown> {
   }
 }
 
-function errorMessage(body: unknown, fallback: string): string {
-  if (body && typeof body === 'object' && 'error' in body) {
-    const value = (body as { error: unknown }).error
-    if (typeof value === 'string' && value.length > 0) return value
-  }
-  if (body && typeof body === 'object' && 'message' in body) {
-    const value = (body as { message: unknown }).message
-    if (typeof value === 'string' && value.length > 0) return value
-  }
-  return fallback
-}
-
-async function apiFetch<T>(
-  path: string,
-  init: RequestInit = {},
-): Promise<T> {
+async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers)
   if (init.body && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json')
@@ -263,7 +250,7 @@ export async function startGitHubAppManifest(
       }),
     },
   )
-  if (!body.action || !body.manifest) {
+  if (!(body.action && body.manifest)) {
     throw new ApiError(500, 'GitHub App manifest response incomplete', body)
   }
   const actionURL = assertGitHubHostURL(body.action, 'GitHub App create URL')
@@ -612,9 +599,7 @@ export function getLanes(): Promise<GroupedLanes> {
   return apiFetch('/api/v1/lanes')
 }
 
-export function getProjectLanes(
-  projectId: string,
-): Promise<{ lanes: Lane[] }> {
+export function getProjectLanes(projectId: string): Promise<{ lanes: Lane[] }> {
   return apiFetch(`/api/v1/projects/${projectId}/lanes`)
 }
 

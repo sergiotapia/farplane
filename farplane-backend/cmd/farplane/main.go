@@ -29,6 +29,7 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("config: %w", err)
 	}
+
 	if cfg.GinMode != "" {
 		gin.SetMode(cfg.GinMode)
 	}
@@ -52,8 +53,10 @@ func run() error {
 	}
 
 	errCh := make(chan error, 1)
+
 	go func() {
 		log.Printf("listening on %s", cfg.Addr)
+
 		errCh <- srv.ListenAndServe()
 	}()
 
@@ -64,15 +67,19 @@ func run() error {
 	case <-stop:
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
 		defer shutdownCancel()
+
 		if err := srv.Shutdown(shutdownCtx); err != nil {
 			return fmt.Errorf("shutdown: %w", err)
 		}
+
 		log.Println("stopped")
+
 		return nil
 	case err := <-errCh:
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			return fmt.Errorf("listen: %w", err)
 		}
+
 		return nil
 	}
 }

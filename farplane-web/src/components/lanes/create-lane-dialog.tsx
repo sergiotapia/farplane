@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useEffect, useMemo, useState } from 'react'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/ui/button.tsx'
 import {
   Combobox,
   ComboboxContent,
@@ -10,7 +10,7 @@ import {
   ComboboxInput,
   ComboboxItem,
   ComboboxList,
-} from '@/components/ui/combobox'
+} from '@/components/ui/combobox.tsx'
 import {
   Dialog,
   DialogContent,
@@ -18,9 +18,9 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+} from '@/components/ui/dialog.tsx'
+import { Input } from '@/components/ui/input.tsx'
+import { Label } from '@/components/ui/label.tsx'
 import {
   ApiError,
   createLane,
@@ -28,15 +28,15 @@ import {
   getProjectEnvironment,
   getProjects,
   getScratchEnvironment,
+  type LaneAgent,
   laneAgentsQueryKey,
   lanesQueryKey,
+  type Project,
   projectEnvironmentQueryKey,
   projectLanesQueryKey,
   projectsQueryKey,
   scratchEnvironmentQueryKey,
-  type LaneAgent,
-  type Project,
-} from '@/lib/api'
+} from '@/lib/api.ts'
 
 export type CreateLanePrefill =
   | { mode: 'pick' }
@@ -73,7 +73,13 @@ export function CreateLaneDialog({ open, onOpenChange, prefill }: Props) {
   })
   const projectEnvQuery = useQuery({
     queryKey: projectEnvironmentQueryKey(projectChoice?.id ?? ''),
-    queryFn: () => getProjectEnvironment(projectChoice!.id),
+    queryFn: () => {
+      const projectId = projectChoice?.id
+      if (!projectId) {
+        throw new Error('project id required')
+      }
+      return getProjectEnvironment(projectId)
+    },
     enabled: open && projectChoice?.kind === 'project',
   })
   const agentsQuery = useQuery({
@@ -145,13 +151,16 @@ export function CreateLaneDialog({ open, onOpenChange, prefill }: Props) {
   }, [open, prefill, projectsQuery.data])
 
   const createMutation = useMutation({
-    mutationFn: () =>
-      createLane({
+    mutationFn: () => {
+      if (!agent?.provider) {
+        throw new Error('agent required')
+      }
+      return createLane({
         name: name.trim() || 'Lane',
-        agent_provider: agent!.provider,
-        project_id:
-          projectChoice?.kind === 'project' ? projectChoice.id : null,
-      }),
+        agent_provider: agent.provider,
+        project_id: projectChoice?.kind === 'project' ? projectChoice.id : null,
+      })
+    },
     onSuccess: async (lane) => {
       await queryClient.invalidateQueries({ queryKey: lanesQueryKey })
       if (lane.project_id) {
@@ -163,17 +172,12 @@ export function CreateLaneDialog({ open, onOpenChange, prefill }: Props) {
       await navigate({ to: '/lanes/$laneId', params: { laneId: lane.id } })
     },
     onError: (err) => {
-      setError(
-        err instanceof ApiError ? err.message : 'Could not create Lane',
-      )
+      setError(err instanceof ApiError ? err.message : 'Could not create Lane')
     },
   })
 
   const canSubmit =
-    !!projectChoice &&
-    !!agent &&
-    environmentReady &&
-    !createMutation.isPending
+    !!projectChoice && !!agent && environmentReady && !createMutation.isPending
 
   const environmentHint = (() => {
     if (!projectChoice) return null
@@ -255,12 +259,16 @@ export function CreateLaneDialog({ open, onOpenChange, prefill }: Props) {
           <div className="space-y-2">
             <Label>Project</Label>
             <Combobox
-              items={projectChoices}
-              value={projectChoice}
-              onValueChange={setProjectChoice}
-              itemToStringLabel={(p) => p.name}
-              itemToStringValue={(p) => p.id}
-              isItemEqualToValue={(a, b) => a.id === b.id}
+              items={projectChoices as ProjectChoice[]}
+              value={projectChoice as ProjectChoice | null}
+              onValueChange={(next) =>
+                setProjectChoice((next as ProjectChoice | null) ?? null)
+              }
+              itemToStringLabel={(p: ProjectChoice) => p.name}
+              itemToStringValue={(p: ProjectChoice) => p.id}
+              isItemEqualToValue={(a: ProjectChoice, b: ProjectChoice) =>
+                a.id === b.id
+              }
             >
               <ComboboxInput
                 placeholder="Select a project or No project"

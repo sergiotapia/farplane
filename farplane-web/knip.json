@@ -1,0 +1,23 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "src/routes/**/*.{ts,tsx}",
+    "e2e/**/*.{ts,tsx}",
+    "src/**/*.{test,spec}.{ts,tsx}",
+    "src/test/**/*.{ts,tsx}"
+  ],
+  "project": ["src/**/*.{ts,tsx}", "e2e/**/*.{ts,tsx}"],
+  "ignoreDependencies": ["tailwindcss", "tw-animate-css", "shadcn"],
+  "ignoreIssues": {
+    "src/components/ui/**": [
+      "exports",
+      "types",
+      "nsExports",
+      "nsTypes",
+      "enumMembers",
+      "duplicates"
+    ],
+    "src/lib/api.ts": ["exports", "types"]
+  },
+  "includeEntryExports": true
+}

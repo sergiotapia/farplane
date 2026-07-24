@@ -10,7 +10,7 @@ import (
 	"github.com/farplane/farplane/farplane-backend/internal/db"
 )
 
-func main() {
+func main() { //nolint:gocyclo // multi-branch orchestration; keep under threshold when rewriting
 	if len(os.Args) < 2 {
 		usage()
 		os.Exit(2)
@@ -20,6 +20,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("config: %v", err)
 	}
+
 	cmd := os.Args[1]
 
 	switch cmd {
@@ -38,6 +39,7 @@ func main() {
 			fmt.Fprintln(os.Stderr, "usage: migrate create <name>")
 			os.Exit(2)
 		}
+
 		dir := migrationsPath()
 		err = db.CreateMigration(dir, os.Args[2])
 	case "help", "-h", "--help":
@@ -50,7 +52,7 @@ func main() {
 	}
 
 	if err != nil {
-		log.Fatalf("migrate %s: %v", cmd, err)
+		log.Fatalf("migrate %s: %v", cmd, err) //nolint:gosec // G706: cmd is a fixed CLI verb from argv.
 	}
 }
 
@@ -65,6 +67,7 @@ func migrationsPath() string {
 			return c
 		}
 	}
+
 	return filepath.Join("internal", "db", "migrations")
 }
 

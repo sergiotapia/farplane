@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -24,6 +25,7 @@ const (
 	defaultGoogleRedirectURL = "http://localhost:8080/api/v1/auth/google/callback"
 	defaultGitHubCallbackURL = "http://localhost:8080/api/v1/github/callback"
 	// Local-only default. Used when APP_ENV is empty, local, or development.
+	//nolint:gosec // G101: local-only default DSN; override in real installs.
 	defaultDatabaseURL = "postgres://postgres:postgres@127.0.0.1:5432/farplane_dev?sslmode=disable"
 	// Local-only signing key for OAuth state. Override in real installs.
 	defaultSessionSecret = "farplane-local-session-secret-change-me"
@@ -93,7 +95,7 @@ func (c Config) GitHubAppConfigured() bool {
 // "local", "dev", or "development". Other environments require DATABASE_URL.
 //
 // SESSION_SECRET defaults only in local/dev; other environments require it.
-func Load() (Config, error) {
+func Load() (Config, error) { //nolint:gocyclo,funlen // multi-branch orchestration; keep under threshold when rewriting
 	loadDotEnv()
 
 	cfg := Config{
@@ -124,10 +126,13 @@ func Load() (Config, error) {
 	if v := strings.TrimSpace(os.Getenv("APP_BASE_URL")); v != "" {
 		cfg.AppBaseURL = strings.TrimRight(v, "/")
 	}
+
 	if v := strings.TrimSpace(os.Getenv("APP_API_BASE_URL")); v != "" {
 		cfg.AppAPIBaseURL = strings.TrimRight(v, "/")
 	}
+
 	cfg.GoogleClientID = strings.TrimSpace(os.Getenv("GOOGLE_CLIENT_ID"))
+
 	cfg.GoogleClientSecret = strings.TrimSpace(os.Getenv("GOOGLE_CLIENT_SECRET"))
 	if v := strings.TrimSpace(os.Getenv("GOOGLE_REDIRECT_URL")); v != "" {
 		cfg.GoogleRedirectURL = v
@@ -146,21 +151,26 @@ func Load() (Config, error) {
 	if v := strings.TrimSpace(os.Getenv("GITHUB_APP_ID")); v != "" {
 		id, err := strconv.ParseInt(v, 10, 64)
 		if err != nil || id <= 0 {
-			return Config{}, fmt.Errorf("GITHUB_APP_ID: must be a positive integer")
+			return Config{}, errors.New("GITHUB_APP_ID: must be a positive integer")
 		}
+
 		cfg.GitHubAppID = id
 	}
+
 	cfg.GitHubAppSlug = strings.TrimSpace(os.Getenv("GITHUB_APP_SLUG"))
 	cfg.GitHubAppWebhookSecret = strings.TrimSpace(os.Getenv("GITHUB_APP_WEBHOOK_SECRET"))
 	cfg.GitHubAppClientID = strings.TrimSpace(os.Getenv("GITHUB_APP_CLIENT_ID"))
+
 	cfg.GitHubAppClientSecret = strings.TrimSpace(os.Getenv("GITHUB_APP_CLIENT_SECRET"))
 	if v := strings.TrimSpace(os.Getenv("GITHUB_APP_CALLBACK_URL")); v != "" {
 		cfg.GitHubAppCallbackURL = v
 	}
+
 	pem, err := loadGitHubAppPrivateKeyPEM()
 	if err != nil {
 		return Config{}, err
 	}
+
 	cfg.GitHubAppPrivateKeyPEM = pem
 
 	if v := strings.TrimSpace(os.Getenv("SESSION_COOKIE_SECURE")); v != "" {
@@ -168,6 +178,7 @@ func Load() (Config, error) {
 		if err != nil {
 			return Config{}, fmt.Errorf("SESSION_COOKIE_SECURE: %w", err)
 		}
+
 		cfg.SessionCookieSecure = secure
 	} else {
 		// Secure cookies by default outside local/dev HTTP.
@@ -204,6 +215,7 @@ func loadDotEnv() {
 	if wd, err := os.Getwd(); err == nil {
 		candidates = append(candidates, filepath.Join(wd, "..", ".env"))
 	}
+
 	for _, path := range candidates {
 		_ = godotenv.Load(path)
 	}
@@ -217,9 +229,11 @@ func IsPublicAPIBaseURL(raw string) bool {
 	if u == "" || !strings.HasPrefix(u, "https://") {
 		return false
 	}
+
 	if strings.Contains(u, "localhost") || strings.Contains(u, "127.0.0.1") || strings.Contains(u, "[::1]") {
 		return false
 	}
+
 	return true
 }
 
@@ -227,15 +241,19 @@ func IsPublicAPIBaseURL(raw string) bool {
 // Inline PEM may use literal \n for multiline env values.
 func loadGitHubAppPrivateKeyPEM() (string, error) {
 	if path := strings.TrimSpace(os.Getenv("GITHUB_APP_PRIVATE_KEY_PATH")); path != "" {
+		//nolint:gosec // G304: path comes from GITHUB_APP_PRIVATE_KEY_PATH env.
 		raw, err := os.ReadFile(path)
 		if err != nil {
 			return "", fmt.Errorf("GITHUB_APP_PRIVATE_KEY_PATH: %w", err)
 		}
+
 		return string(raw), nil
 	}
+
 	pem := strings.TrimSpace(os.Getenv("GITHUB_APP_PRIVATE_KEY"))
 	if pem == "" {
 		return "", nil
 	}
+
 	return strings.ReplaceAll(pem, `\n`, "\n"), nil
 }

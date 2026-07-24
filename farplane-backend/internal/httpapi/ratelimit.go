@@ -33,17 +33,21 @@ func (l *ipRateLimiter) allow(key string) bool {
 
 	now := l.now().UTC()
 	cutoff := now.Add(-l.window)
+
 	recent := l.hits[key][:0]
 	for _, ts := range l.hits[key] {
 		if ts.After(cutoff) {
 			recent = append(recent, ts)
 		}
 	}
+
 	if len(recent) >= l.limit {
 		l.hits[key] = recent
 		return false
 	}
+
 	l.hits[key] = append(recent, now)
+
 	return true
 }
 
@@ -51,9 +55,10 @@ func (l *ipRateLimiter) middleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ip := clientIP(c)
 		if !l.allow(ip) {
-			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{"error": "too many requests"})
+			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{jsonKeyError: "too many requests"})
 			return
 		}
+
 		c.Next()
 	}
 }
@@ -63,5 +68,6 @@ func clientIP(c *gin.Context) string {
 	if host, _, err := net.SplitHostPort(ip); err == nil {
 		return host
 	}
+
 	return ip
 }

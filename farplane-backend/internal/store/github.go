@@ -31,13 +31,16 @@ type UpsertGitHubInstallationInput struct {
 // member cannot steal disconnect rights. Cross-organization reassignment is rejected.
 func (s *Store) UpsertGitHubInstallation(ctx context.Context, in UpsertGitHubInstallationInput) (models.GitHubInstallation, error) {
 	now := time.Now().UTC()
+
 	var out models.GitHubInstallation
+
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
 		existing, err := getGitHubInstallationByGitHubIDTx(ctx, tx, in.GitHubInstallationID)
 		if err == nil {
 			if existing.OrganizationID != in.OrganizationID && existing.UninstalledAt == nil {
 				return ErrGitHubInstallationOwned
 			}
+
 			const update = `
 				UPDATE github_installations SET
 					github_account_id = $2,
@@ -57,6 +60,7 @@ func (s *Store) UpsertGitHubInstallation(ctx context.Context, in UpsertGitHubIns
 					github_account_type, repository_selection, connected_by_user_id, suspended_at, uninstalled_at,
 					created_at, updated_at
 			`
+
 			inst, err := scanGitHubInstallation(tx.QueryRow(
 				ctx, update,
 				in.GitHubInstallationID, in.GitHubAccountID, in.GitHubAccountLogin, in.GitHubAccountType,
@@ -65,9 +69,12 @@ func (s *Store) UpsertGitHubInstallation(ctx context.Context, in UpsertGitHubIns
 			if err != nil {
 				return fmt.Errorf("update github installation: %w", err)
 			}
+
 			out = inst
+
 			return nil
 		}
+
 		if !errors.Is(err, ErrNotFound) {
 			return err
 		}
@@ -82,6 +89,7 @@ func (s *Store) UpsertGitHubInstallation(ctx context.Context, in UpsertGitHubIns
 				github_account_type, repository_selection, connected_by_user_id, suspended_at, uninstalled_at,
 				created_at, updated_at
 		`
+
 		inst, err := scanGitHubInstallation(tx.QueryRow(
 			ctx, insert,
 			in.OrganizationID, in.GitHubInstallationID, in.GitHubAccountID, in.GitHubAccountLogin,
@@ -90,12 +98,15 @@ func (s *Store) UpsertGitHubInstallation(ctx context.Context, in UpsertGitHubIns
 		if err != nil {
 			return fmt.Errorf("insert github installation: %w", err)
 		}
+
 		out = inst
+
 		return nil
 	})
 	if err != nil {
 		return models.GitHubInstallation{}, err
 	}
+
 	return out, nil
 }
 
@@ -107,13 +118,16 @@ func getGitHubInstallationByGitHubIDTx(ctx context.Context, tx pgx.Tx, githubIns
 		FROM github_installations
 		WHERE github_installation_id = $1
 	`
+
 	inst, err := scanGitHubInstallation(tx.QueryRow(ctx, q, githubInstallationID))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return models.GitHubInstallation{}, ErrNotFound
 	}
+
 	if err != nil {
 		return models.GitHubInstallation{}, fmt.Errorf("get github installation by github id: %w", err)
 	}
+
 	return inst, nil
 }
 
@@ -128,12 +142,14 @@ type GitHubRepoSync struct {
 
 // ReplaceGitHubRepositories replaces the active repo set for an installation.
 // Repos not in the list are soft-removed; matching projects are marked revoked.
-func (s *Store) ReplaceGitHubRepositories(ctx context.Context, installationRowID string, repos []GitHubRepoSync) error {
+func (s *Store) ReplaceGitHubRepositories(ctx context.Context, installationRowID string, repos []GitHubRepoSync) error { //nolint:gocyclo,funlen // multi-branch orchestration; keep under threshold when rewriting
 	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
 		now := time.Now().UTC()
+
 		keep := make([]int64, 0, len(repos))
 		for _, repo := range repos {
 			keep = append(keep, repo.GitHubRepositoryID)
+
 			const upsert = `
 				INSERT INTO github_repositories (
 					github_installation_id, github_repository_id, full_name, default_branch,
@@ -147,11 +163,14 @@ func (s *Store) ReplaceGitHubRepositories(ctx context.Context, installationRowID
 					removed_at = NULL,
 					updated_at = EXCLUDED.updated_at
 			`
+
 			branch := repo.DefaultBranch
 			if branch == "" {
 				branch = "main"
 			}
-			if _, err := tx.Exec(ctx, upsert,
+
+			if _, err := tx.Exec(
+				ctx, upsert,
 				installationRowID, repo.GitHubRepositoryID, repo.FullName, branch,
 				repo.Private, repo.HTMLURL, now,
 			); err != nil {
@@ -159,8 +178,11 @@ func (s *Store) ReplaceGitHubRepositories(ctx context.Context, installationRowID
 			}
 		}
 
-		var removeQ string
-		var args []any
+		var (
+			removeQ string
+			args    []any
+		)
+
 		if len(keep) == 0 {
 			removeQ = `
 				UPDATE github_repositories
@@ -186,17 +208,22 @@ func (s *Store) ReplaceGitHubRepositories(ctx context.Context, installationRowID
 			return fmt.Errorf("soft-remove github repositories: %w", err)
 		}
 		defer rows.Close()
+
 		var removedIDs []int64
+
 		for rows.Next() {
 			var id int64
 			if err := rows.Scan(&id); err != nil {
 				return fmt.Errorf("scan removed repository: %w", err)
 			}
+
 			removedIDs = append(removedIDs, id)
 		}
+
 		if err := rows.Err(); err != nil {
 			return err
 		}
+
 		if len(removedIDs) > 0 {
 			if _, err := tx.Exec(ctx, `
 				UPDATE projects
@@ -221,6 +248,7 @@ func (s *Store) ReplaceGitHubRepositories(ctx context.Context, installationRowID
 				return fmt.Errorf("reactivate projects: %w", err)
 			}
 		}
+
 		return nil
 	})
 }
@@ -230,7 +258,9 @@ func (s *Store) SoftRemoveGitHubRepositories(ctx context.Context, installationRo
 	if len(githubRepositoryIDs) == 0 {
 		return nil
 	}
+
 	now := time.Now().UTC()
+
 	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
 		if _, err := tx.Exec(ctx, `
 			UPDATE github_repositories
@@ -241,6 +271,7 @@ func (s *Store) SoftRemoveGitHubRepositories(ctx context.Context, installationRo
 		`, installationRowID, githubRepositoryIDs, now); err != nil {
 			return fmt.Errorf("soft-remove github repositories: %w", err)
 		}
+
 		if _, err := tx.Exec(ctx, `
 			UPDATE projects
 			SET github_access_status = $2, updated_at = $3
@@ -249,6 +280,7 @@ func (s *Store) SoftRemoveGitHubRepositories(ctx context.Context, installationRo
 		`, installationRowID, models.ProjectGitHubAccessRevoked, now, githubRepositoryIDs); err != nil {
 			return fmt.Errorf("revoke projects: %w", err)
 		}
+
 		return nil
 	})
 }
@@ -256,8 +288,10 @@ func (s *Store) SoftRemoveGitHubRepositories(ctx context.Context, installationRo
 // MarkGitHubInstallationUninstalled soft-uninstalls and revokes all its projects.
 func (s *Store) MarkGitHubInstallationUninstalled(ctx context.Context, githubInstallationID int64) error {
 	now := time.Now().UTC()
+
 	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
 		var rowID string
+
 		err := tx.QueryRow(ctx, `
 			UPDATE github_installations
 			SET uninstalled_at = $2, updated_at = $2
@@ -267,9 +301,11 @@ func (s *Store) MarkGitHubInstallationUninstalled(ctx context.Context, githubIns
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil
 		}
+
 		if err != nil {
 			return fmt.Errorf("mark installation uninstalled: %w", err)
 		}
+
 		if _, err := tx.Exec(ctx, `
 			UPDATE github_repositories
 			SET removed_at = $2, updated_at = $2
@@ -277,6 +313,7 @@ func (s *Store) MarkGitHubInstallationUninstalled(ctx context.Context, githubIns
 		`, rowID, now); err != nil {
 			return fmt.Errorf("soft-remove repos on uninstall: %w", err)
 		}
+
 		if _, err := tx.Exec(ctx, `
 			UPDATE projects
 			SET github_access_status = $2, updated_at = $3
@@ -284,6 +321,7 @@ func (s *Store) MarkGitHubInstallationUninstalled(ctx context.Context, githubIns
 		`, rowID, models.ProjectGitHubAccessRevoked, now); err != nil {
 			return fmt.Errorf("revoke projects on uninstall: %w", err)
 		}
+
 		return nil
 	})
 }
@@ -292,8 +330,10 @@ func (s *Store) MarkGitHubInstallationUninstalled(ctx context.Context, githubIns
 // When suspending, projects on that install are marked revoked.
 func (s *Store) SetGitHubInstallationSuspended(ctx context.Context, githubInstallationID int64, suspendedAt *time.Time) error {
 	now := time.Now().UTC()
+
 	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
 		var rowID string
+
 		err := tx.QueryRow(ctx, `
 			UPDATE github_installations
 			SET suspended_at = $2, updated_at = $3
@@ -303,9 +343,11 @@ func (s *Store) SetGitHubInstallationSuspended(ctx context.Context, githubInstal
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil
 		}
+
 		if err != nil {
 			return fmt.Errorf("set installation suspended: %w", err)
 		}
+
 		if suspendedAt != nil {
 			if _, err := tx.Exec(ctx, `
 				UPDATE projects
@@ -315,6 +357,7 @@ func (s *Store) SetGitHubInstallationSuspended(ctx context.Context, githubInstal
 				return fmt.Errorf("revoke projects on suspend: %w", err)
 			}
 		}
+
 		return nil
 	})
 }
@@ -329,19 +372,24 @@ func (s *Store) ListGitHubInstallations(ctx context.Context, organizationID stri
 		WHERE organization_id = $1 AND uninstalled_at IS NULL
 		ORDER BY created_at ASC
 	`
+
 	rows, err := s.pool.Query(ctx, q, organizationID)
 	if err != nil {
 		return nil, fmt.Errorf("list github installations: %w", err)
 	}
 	defer rows.Close()
+
 	var out []models.GitHubInstallation
+
 	for rows.Next() {
 		inst, err := scanGitHubInstallation(rows)
 		if err != nil {
 			return nil, err
 		}
+
 		out = append(out, inst)
 	}
+
 	return out, rows.Err()
 }
 
@@ -354,13 +402,16 @@ func (s *Store) GetGitHubInstallationByID(ctx context.Context, id string) (model
 		FROM github_installations
 		WHERE id = $1
 	`
+
 	inst, err := scanGitHubInstallation(s.pool.QueryRow(ctx, q, id))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return models.GitHubInstallation{}, ErrNotFound
 	}
+
 	if err != nil {
 		return models.GitHubInstallation{}, fmt.Errorf("get github installation: %w", err)
 	}
+
 	return inst, nil
 }
 
@@ -373,13 +424,16 @@ func (s *Store) GetGitHubInstallationByGitHubID(ctx context.Context, githubInsta
 		FROM github_installations
 		WHERE github_installation_id = $1
 	`
+
 	inst, err := scanGitHubInstallation(s.pool.QueryRow(ctx, q, githubInstallationID))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return models.GitHubInstallation{}, ErrNotFound
 	}
+
 	if err != nil {
 		return models.GitHubInstallation{}, fmt.Errorf("get github installation by github id: %w", err)
 	}
+
 	return inst, nil
 }
 
@@ -412,12 +466,15 @@ func (s *Store) ListPickableGitHubRepositories(ctx context.Context, organization
 			CASE WHEN i.github_account_type = 'Organization' THEN 0 ELSE 1 END,
 			i.created_at ASC
 	`
+
 	rows, err := s.pool.Query(ctx, q, organizationID)
 	if err != nil {
 		return nil, fmt.Errorf("list pickable github repositories: %w", err)
 	}
 	defer rows.Close()
+
 	var out []PickableGitHubRepository
+
 	for rows.Next() {
 		var repo PickableGitHubRepository
 		if err := rows.Scan(
@@ -426,8 +483,10 @@ func (s *Store) ListPickableGitHubRepositories(ctx context.Context, organization
 		); err != nil {
 			return nil, fmt.Errorf("scan pickable repository: %w", err)
 		}
+
 		out = append(out, repo)
 	}
+
 	return out, rows.Err()
 }
 
@@ -449,7 +508,9 @@ func (s *Store) GetPickableGitHubRepository(ctx context.Context, organizationID 
 			i.created_at ASC
 		LIMIT 1
 	`
+
 	var repo PickableGitHubRepository
+
 	err := s.pool.QueryRow(ctx, q, organizationID, githubRepositoryID).Scan(
 		&repo.GitHubRepositoryID, &repo.FullName, &repo.DefaultBranch, &repo.Private, &repo.HTMLURL,
 		&repo.GitHubInstallationID, &repo.GitHubAccountType, &repo.GitHubAccountLogin,
@@ -457,9 +518,11 @@ func (s *Store) GetPickableGitHubRepository(ctx context.Context, organizationID 
 	if errors.Is(err, pgx.ErrNoRows) {
 		return PickableGitHubRepository{}, ErrNotFound
 	}
+
 	if err != nil {
 		return PickableGitHubRepository{}, fmt.Errorf("get pickable github repository: %w", err)
 	}
+
 	return repo, nil
 }
 
@@ -469,6 +532,7 @@ type scannable interface {
 
 func scanGitHubInstallation(row scannable) (models.GitHubInstallation, error) {
 	var inst models.GitHubInstallation
+
 	err := row.Scan(
 		&inst.ID, &inst.OrganizationID, &inst.GitHubInstallationID, &inst.GitHubAccountID,
 		&inst.GitHubAccountLogin, &inst.GitHubAccountType, &inst.RepositorySelection,
@@ -477,15 +541,19 @@ func scanGitHubInstallation(row scannable) (models.GitHubInstallation, error) {
 	if err != nil {
 		return models.GitHubInstallation{}, err
 	}
+
 	inst.CreatedAt = inst.CreatedAt.UTC()
+
 	inst.UpdatedAt = inst.UpdatedAt.UTC()
 	if inst.SuspendedAt != nil {
 		t := inst.SuspendedAt.UTC()
 		inst.SuspendedAt = &t
 	}
+
 	if inst.UninstalledAt != nil {
 		t := inst.UninstalledAt.UTC()
 		inst.UninstalledAt = &t
 	}
+
 	return inst, nil
 }

@@ -18,8 +18,8 @@ export function MockPreviewEmbed() {
           Ship work that looks finished.
         </h2>
         <p className="max-w-[420px] text-base leading-6 text-[#525252]">
-          Northwind helps small teams turn rough ideas into a live site — without
-          a file tree in sight.
+          Northwind helps small teams turn rough ideas into a live site —
+          without a file tree in sight.
         </p>
         <div className="flex items-center gap-3">
           <span className="inline-flex h-10 items-center rounded-lg bg-foreground px-[18px] text-sm font-medium text-background">

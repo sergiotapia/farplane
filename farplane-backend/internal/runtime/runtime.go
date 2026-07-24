@@ -80,5 +80,5 @@ type Runtime interface {
 	OpenAgentStream(ctx context.Context, id string) (AgentStream, error)
 	SendUserTurn(ctx context.Context, id string, turn UserTurn) error
 	InterruptTurn(ctx context.Context, id string) error
-	BuildImage(ctx context.Context, dockerfileText string, tag string) (imageReference string, logText string, err error)
+	BuildImage(ctx context.Context, dockerfileText, tag string) (imageReference, logText string, err error)
 }

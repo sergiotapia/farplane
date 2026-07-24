@@ -1,17 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import { useState } from 'react'
 
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { Button } from '@/components/ui/button.tsx'
+import { Input } from '@/components/ui/input.tsx'
+import { Label } from '@/components/ui/label.tsx'
 import {
   clearSecret,
   getSecrets,
+  type OrganizationSecret,
   secretsQueryKey,
   setSecret,
-  type OrganizationSecret,
-} from '@/lib/api'
+} from '@/lib/api.ts'
 
 export const Route = createFileRoute('/_app/settings/secrets')({
   component: SecretsPage,
@@ -136,11 +136,11 @@ function SecretRow({
           </Button>
         ) : null}
       </div>
-      {(setMutation.isError || clearMutation.isError) && (
+      {setMutation.isError || clearMutation.isError ? (
         <p className="text-destructive text-sm">
           {(setMutation.error || clearMutation.error)?.message}
         </p>
-      )}
+      ) : null}
     </div>
   )
 }
